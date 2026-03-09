@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Racing Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Menu Screen -->
+  <div id="menuScreen" class="ov">
+    <div id="menuInner">
+      <h1 id="menuTitle">RACING GAME</h1>
+      <div id="menuSections">
+        <div class="menu-section">
+          <div class="menu-section-title">SELECT CAR</div>
+          <div id="carSel" class="menu-sel"></div>
+        </div>
+        <div class="menu-section">
+          <div class="menu-section-title">SELECT COLOR</div>
+          <div id="colSel" class="menu-sel"></div>
+        </div>
+        <div class="menu-section">
+          <div class="menu-section-title">SELECT TRACK</div>
+          <div id="trkSel" class="menu-sel"></div>
+        </div>
+        <div class="menu-section">
+          <div class="menu-section-title">DIFFICULTY</div>
+          <div id="difSel" class="menu-sel"></div>
+        </div>
+        <div class="menu-section">
+          <div class="menu-section-title">WEATHER</div>
+          <div id="wxSel" class="menu-sel"></div>
+        </div>
+        <div id="carStats">
+          <div class="stat-row">
+            <span class="stat-label">SPEED</span>
+            <div class="stat-bar"><div class="stat-bg"><div class="stat-fg" id="stSpeed"></div></div></div>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">ACCEL</span>
+            <div class="stat-bar"><div class="stat-bg"><div class="stat-fg" id="stAccel"></div></div></div>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">BRAKE</span>
+            <div class="stat-bar"><div class="stat-bg"><div class="stat-fg" id="stBrake"></div></div></div>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">GRIP</span>
+            <div class="stat-bar"><div class="stat-bg"><div class="stat-fg" id="stGrip"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <button id="startBtn" class="start-btn">START RACE</button>
+      <div id="controlHints" class="control-hints">
+        WASD / Arrow Keys: Steer &amp; Accelerate &nbsp;|&nbsp;
+        Space: Handbrake &nbsp;|&nbsp; Shift: Nitro &nbsp;|&nbsp;
+        E: Use Item &nbsp;|&nbsp; P: Pause &nbsp;|&nbsp; Tab: Rear View
+      </div>
+    </div>
+  </div>
+
+  <!-- Countdown Screen -->
+  <div id="countdownScreen" class="ov hide">
+    <div id="cntNum">3</div>
+  </div>
+
+  <!-- Pause Screen -->
+  <div id="pauseScreen" class="ov hide">
+    <div id="pauseInner">
+      <div id="pauseTitle">PAUSED</div>
+      <div id="pauseHint">Press P to resume</div>
+    </div>
+  </div>
+
+  <!-- Finish Screen -->
+  <div id="finishScreen" class="ov hide">
+    <div id="finInner">
+      <div id="finTitle">RACE FINISHED</div>
+      <div id="finStats"></div>
+      <button id="finBtn" class="start-btn">BACK TO MENU</button>
+    </div>
+  </div>
+
+  <!-- HUD Left Panel -->
+  <div id="hudL" class="hp">
+    <div class="ht">TELEMETRY</div>
+    <div class="hr"><span class="hl">SPEED</span><span class="hv" id="vSpd">0</span></div>
+    <div class="hr"><span class="hl">RPM</span><span class="hv" id="vRpm">0</span></div>
+    <div class="hr"><span class="hl">GEAR</span><span class="hv" id="vGear">N</span></div>
+    <div class="hr"><span class="hl">TIRES</span><span class="hv" id="vTire">100%</span></div>
+    <div class="hr"><span class="hl">EFFECTS</span><span class="hv" id="vAct">—</span></div>
+    <div class="bar-row">
+      <span class="hl">FUEL</span>
+      <div class="bt"><div class="bf" id="bF"></div></div>
+    </div>
+    <div class="bar-row">
+      <span class="hl">HP</span>
+      <div class="bt"><div class="bf" id="bH"></div></div>
+    </div>
+    <div class="bar-row">
+      <span class="hl">NITRO</span>
+      <div class="bt"><div class="bf" id="bN"></div></div>
+    </div>
+  </div>
+
+  <!-- HUD Right Panel -->
+  <div id="hudR" class="hp">
+    <div class="ht">RACE INFO</div>
+    <div class="hr"><span class="hl">POS</span><span class="hv" id="vPos">—</span></div>
+    <div class="hr"><span class="hl">LAP</span><span class="hv" id="vLap">0/5</span></div>
+    <div class="hr"><span class="hl">TIME</span><span class="hv" id="vTime">0:00.0</span></div>
+    <div class="hr"><span class="hl">LAP T</span><span class="hv" id="vLT">—</span></div>
+    <div class="hr"><span class="hl">BEST</span><span class="hv" id="vBest">—</span></div>
+    <div class="hr"><span class="hl">SCORE</span><span class="hv" id="vScr">0</span></div>
+    <div class="hr"><span class="hl">DRIFT</span><span class="hv" id="vDrf">0</span></div>
+    <div class="hr"><span class="hl">FPS</span><span class="hv" id="vFps">60</span></div>
+  </div>
+
+  <!-- Position Board -->
+  <div id="posBoard">
+    <div id="pbRows"></div>
+  </div>
+
+  <!-- Minimap -->
+  <div id="miniW">
+    <canvas id="mini" width="155" height="155"></canvas>
+  </div>
+
+  <!-- Tachometer -->
+  <div id="tachoW">
+    <canvas id="tacho" width="135" height="135"></canvas>
+  </div>
+
+  <!-- Item HUD -->
+  <div id="itemHud">
+    <div class="item-slot" id="sl0"></div>
+    <div class="item-slot" id="sl1"></div>
+    <div class="item-slot" id="sl2"></div>
+  </div>
+
+  <!-- Weather Indicator -->
+  <div id="weatherInd">☀️ CLEAR</div>
+
+  <!-- Sound Button -->
+  <button id="soundBtn">🔊</button>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
