@@ -81,6 +81,11 @@ const AI_NAMES = ['Blaze','Nova','Ghost','Viper','Storm','Titan','Raven','Spike'
 const AI_COLORS = ['#ff4444','#44aaff','#44ff88','#ffcc00','#ff44ff','#ff8800','#00ffcc','#8888ff','#ff6666','#66ff66'];
 const TOTAL_LAPS = 5;
 const ROAD_WIDTH = 260;
+const WALL_HIT_COOLDOWN_MS = 300;
+const PLAYER_WALL_RESTITUTION = 0.35;
+const PLAYER_WALL_SPEED_FACTOR = 0.5;
+const AI_WALL_RESTITUTION = 0.2;
+const AI_WALL_SPEED_FACTOR = 0.6;
 
 // ============================================================
 // AUDIO ENGINE
@@ -859,22 +864,41 @@ class Player extends Car {
     // Move
     this.x += (Math.cos(this.heading)*this.speed - Math.sin(this.heading)*this.lateralSpeed) * dt*0.001*60;
     this.y += (Math.sin(this.heading)*this.speed + Math.cos(this.heading)*this.lateralSpeed) * dt*0.001*60;
-    // Off-road
-    const nearest = track.nearest(this.x,this.y);
-    if (nearest.dist > ROAD_WIDTH/2 + 20) {
-      this.tires -= 0.8 * dt*0.001;
-      this.fuel -= 0.05 * dt*0.001;
-      this.speed = Math.min(this.speed, 60);
-    }
-    // Boundary push
-    if (nearest.dist > ROAD_WIDTH/2 + 60) {
+    // Hard wall collision at track boundary
+    const nearest = track.nearest(this.x, this.y);
+    const wallDist = ROAD_WIDTH / 2;
+    if (nearest.dist > wallDist) {
       const sp = track.spline[nearest.idx];
-      const dx = sp.x - this.x, dy = sp.y - this.y;
-      const d = Math.sqrt(dx*dx + dy*dy);
+      const dx = this.x - sp.x, dy = this.y - sp.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
       if (d > 0.1) {
-        const push = 0.15 * (nearest.dist - ROAD_WIDTH/2 - 60) * dt * 0.001 * 60;
-        this.x += (dx/d) * push;
-        this.y += (dy/d) * push;
+        // Outward normal (from track center toward car)
+        const nx = dx / d, ny = dy / d;
+        // Snap car back to wall boundary
+        const over = nearest.dist - wallDist;
+        this.x -= nx * over;
+        this.y -= ny * over;
+        // World-space velocity
+        const vx = Math.cos(this.heading) * this.speed - Math.sin(this.heading) * this.lateralSpeed;
+        const vy = Math.sin(this.heading) * this.speed + Math.cos(this.heading) * this.lateralSpeed;
+        // Reflect outward velocity component with restitution
+        const dot = vx * nx + vy * ny;
+        if (dot > 0) {
+          const rvx = vx - (1 + PLAYER_WALL_RESTITUTION) * dot * nx;
+          const rvy = vy - (1 + PLAYER_WALL_RESTITUTION) * dot * ny;
+          this.speed = (Math.cos(this.heading) * rvx + Math.sin(this.heading) * rvy) * PLAYER_WALL_SPEED_FACTOR;
+          this.lateralSpeed = (-Math.sin(this.heading) * rvx + Math.cos(this.heading) * rvy) * PLAYER_WALL_SPEED_FACTOR;
+          // Effects with cooldown to avoid triggering every frame
+          const now = Date.now();
+          if (!this.wallHitTime || now - this.wallHitTime > WALL_HIT_COOLDOWN_MS) {
+            this.wallHitTime = now;
+            this.hp -= 3;
+            this.angularVel += (Math.random() - 0.5) * 2;
+            if (particles) particles.burst(this.x, this.y, 10, {color:'#ffdd44', minSpd:60, maxSpd:180, life:400, size:3});
+            if (audio) audio.playEffect('impact');
+            this.pendingShake = (this.pendingShake || 0) + 10;
+          }
+        }
       }
     }
     // Oil slick
@@ -984,10 +1008,26 @@ class AI extends Car {
         this.heading += normalizeAngle(avoidA - this.heading) * 0.05;
       }
     }
-    // Off-road recovery
-    if (!track.onRoad(this.x,this.y)) {
-      this.heading += angleDiff(this.heading, Math.atan2(track.spline[nearest.idx].y-this.y, track.spline[nearest.idx].x-this.x)) * 0.1;
-      this.speed *= 0.97;
+    // Hard wall collision for AI
+    if (nearest.dist > ROAD_WIDTH / 2) {
+      const sp = track.spline[nearest.idx];
+      const dx = this.x - sp.x, dy = this.y - sp.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 0.1) {
+        const nx = dx / d, ny = dy / d;
+        const over = nearest.dist - ROAD_WIDTH / 2;
+        this.x -= nx * over;
+        this.y -= ny * over;
+        const vx = Math.cos(this.heading) * this.speed - Math.sin(this.heading) * this.lateralSpeed;
+        const vy = Math.sin(this.heading) * this.speed + Math.cos(this.heading) * this.lateralSpeed;
+        const dot = vx * nx + vy * ny;
+        if (dot > 0) {
+          const rvx = vx - (1 + AI_WALL_RESTITUTION) * dot * nx;
+          const rvy = vy - (1 + AI_WALL_RESTITUTION) * dot * ny;
+          this.speed = (Math.cos(this.heading) * rvx + Math.sin(this.heading) * rvy) * AI_WALL_SPEED_FACTOR;
+          this.lateralSpeed = (-Math.sin(this.heading) * rvx + Math.cos(this.heading) * rvy) * AI_WALL_SPEED_FACTOR;
+        }
+      }
     }
     // Item pickup
     if (itemBoxes) {
@@ -1473,6 +1513,8 @@ class Game {
     this.weather.update(dt);
     // Player
     this.player.update(dt, this.input, this.track, this.weather, this.track.itemBoxes, this.oilSlicks, this.missiles, this.particles, this.audio, this.ghost, this.ais);
+    // Apply wall-hit shake accumulated in player update
+    if (this.player.pendingShake) { this.shake += this.player.pendingShake; this.player.pendingShake = 0; }
     // Add tire marks if drifting
     if (this.player.drifting) this.tireMarks.add(this.player.x, this.player.y, this.player.heading);
     // AIs
