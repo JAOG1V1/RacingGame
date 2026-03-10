@@ -275,14 +275,19 @@ class Particles {
     }
   }
   draw(ctx, cx, cy, W, H) {
+    // Cull particles outside visible area (world-space culling using camera bounds)
+    const halfW = W / 2, halfH = H / 2;
+    const margin = 60;
     for (const p of this.active) {
-      const sx = p.x - cx + W/2, sy = p.y - cy + H/2;
-      if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
+      const offX = p.x - cx, offY = p.y - cy;
+      if (offX < -(halfW + margin) || offX > halfW + margin ||
+          offY < -(halfH + margin) || offY > halfH + margin) continue;
       const alpha = clamp(p.life / p.maxLife, 0, 1);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(sx, sy, p.size * alpha, 0, PI2);
+      // Draw at world coordinates; canvas transform maps to screen
+      ctx.arc(p.x, p.y, p.size * alpha, 0, PI2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -377,18 +382,31 @@ class Weather {
       ctx.setTransform(1,0,0,1,0,0);
       ctx.fillStyle = `rgba(0,0,20,${this.nightAlpha})`;
       ctx.fillRect(0,0,W,H);
-      // headlight cone
+      // headlight cones — two beams fanned forward from the car
       const cx2 = W/2, cy2 = H/2;
-      const grad = ctx.createRadialGradient(cx2,cy2,10,cx2,cy2,280);
-      grad.addColorStop(0,'rgba(255,250,200,0.18)');
-      grad.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      const ha = heading + PI/2;
-      ctx.moveTo(cx2,cy2);
-      ctx.arc(cx2,cy2,280,ha-0.5,ha+0.5);
-      ctx.closePath();
-      ctx.fill();
+      // Ambient glow around car
+      const ambGrad = ctx.createRadialGradient(cx2,cy2,0,cx2,cy2,120);
+      ambGrad.addColorStop(0,'rgba(255,250,200,0.10)');
+      ambGrad.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle = ambGrad;
+      ctx.beginPath(); ctx.arc(cx2,cy2,120,0,PI2); ctx.fill();
+      // Left headlight beam
+      const offL = 0.22; // angular offset to left
+      const ha = heading;
+      for (const beamOff of [-offL, offL]) {
+        const bCx = cx2 + Math.cos(ha + beamOff - PI/2) * 12;
+        const bCy = cy2 + Math.sin(ha + beamOff - PI/2) * 12;
+        const bGrad = ctx.createRadialGradient(bCx,bCy,4,bCx,bCy,300);
+        bGrad.addColorStop(0,'rgba(255,252,220,0.22)');
+        bGrad.addColorStop(0.5,'rgba(255,248,200,0.08)');
+        bGrad.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle = bGrad;
+        ctx.beginPath();
+        ctx.moveTo(bCx,bCy);
+        ctx.arc(bCx,bCy,300,ha-0.45,ha+0.45);
+        ctx.closePath();
+        ctx.fill();
+      }
       ctx.restore();
     }
     if (this.lightningAlpha > 0.01) {
@@ -402,16 +420,19 @@ class Weather {
       const count = this.state === 'STORM' ? 400 : 220;
       ctx.save();
       ctx.setTransform(1,0,0,1,0,0);
-      ctx.strokeStyle = 'rgba(180,200,255,0.5)';
-      ctx.lineWidth = 1;
       for (let i = 0; i < count; i++) {
         const d = this.drops[i];
         d.x += d.vx; d.y += d.vy;
         if (d.x > W) d.x -= W; if (d.x < 0) d.x += W;
         if (d.y > H) { d.y -= H; d.x = rng(0,W); }
+        // Vary each drop slightly for natural look
+        const alpha = 0.25 + (i % 5) * 0.08;
+        const len = 1.5 + (i % 3) * 0.8;
+        ctx.strokeStyle = `rgba(180,210,255,${alpha})`;
+        ctx.lineWidth = 0.6 + (i % 4) * 0.25;
         ctx.beginPath();
         ctx.moveTo(d.x, d.y);
-        ctx.lineTo(d.x + d.vx*2, d.y + d.vy*2);
+        ctx.lineTo(d.x + d.vx * len, d.y + d.vy * len);
         ctx.stroke();
       }
       ctx.restore();
@@ -537,7 +558,11 @@ class Missile {
         // Stun AI cars briefly after missile impact
         if (car.stunTimer !== undefined) car.stunTimer = 600;
         this.active = false;
-        if (this.particles) this.particles.burst(this.x,this.y,12,{color:'#ff4400',minSpd:80,maxSpd:200,life:500});
+        if (this.particles) {
+          this.particles.burst(this.x,this.y,14,{color:'#ff4400',minSpd:80,maxSpd:220,life:550,size:5});
+          this.particles.burst(this.x,this.y,8, {color:'#ffcc00',minSpd:60,maxSpd:180,life:450,size:4});
+          this.particles.burst(this.x,this.y,5, {color:'#ffffff',minSpd:120,maxSpd:260,life:350,size:3});
+        }
         return;
       }
     }
@@ -586,10 +611,23 @@ class Ghost {
     ctx.save();
     ctx.translate(frame.x, frame.y);
     ctx.rotate(frame.heading + PI/2);
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-17,-29,34,58);
+    ctx.globalAlpha = 0.32;
+    // Match aerodynamic body shape
+    ctx.strokeStyle = 'rgba(160,220,255,0.9)';
+    ctx.fillStyle = 'rgba(80,160,255,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-7, -29);
+    ctx.bezierCurveTo(16, -22, 17, -10, 17, 0);
+    ctx.lineTo(17, 15);
+    ctx.bezierCurveTo(17, 24, 12, 27, 8, 27);
+    ctx.lineTo(-8, 27);
+    ctx.bezierCurveTo(-12, 27, -17, 24, -17, 15);
+    ctx.lineTo(-17, 0);
+    ctx.bezierCurveTo(-17, -10, -16, -22, -7, -29);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -943,11 +981,24 @@ class Track {
       ctx.fillStyle='#6a6a7a';
       ctx.fillRect(-g.w/2,-g.h/2,g.w,g.h);
       // Row lines
-      ctx.strokeStyle='#9090a8'; ctx.lineWidth=1.2;
       const rows = 5;
+      ctx.strokeStyle='#9090a8'; ctx.lineWidth=1.2;
       for (let r=1;r<rows;r++) {
         const ry = -g.h/2 + r*(g.h/rows);
         ctx.beginPath(); ctx.moveTo(-g.w/2, ry); ctx.lineTo(g.w/2, ry); ctx.stroke();
+      }
+      // Spectator dots
+      const specColors = ['#e04040','#4080ee','#40cc60','#f0c030','#cc44cc','#ff8844'];
+      const rowH = g.h / rows;
+      const cols = Math.floor(g.w / 8);
+      for (let r = 0; r < rows; r++) {
+        const ry = -g.h/2 + r * rowH + rowH * 0.5;
+        for (let c = 0; c < cols; c++) {
+          const cx2 = -g.w/2 + c * 8 + 4;
+          const si = (r * 13 + c * 7) % specColors.length;
+          ctx.fillStyle = specColors[si];
+          ctx.beginPath(); ctx.arc(cx2, ry, 2, 0, PI2); ctx.fill();
+        }
       }
       // Roof
       ctx.fillStyle='#c0c0d0';
@@ -1012,84 +1063,112 @@ class Car {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.heading + PI/2);
     // Shadow
-    ctx.globalAlpha = 0.18;
+    ctx.globalAlpha = 0.22;
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(5, 7, 18, 30, 0, 0, PI2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4, 5, 16, 28, 0, 0, PI2); ctx.fill();
     ctx.globalAlpha = 1;
-    // Side panel shadows for depth
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillRect(-19,-29,6,58);
-    ctx.fillRect(13,-29,6,58);
-    // Car body with gradient for 3D look
-    const bodyGrad = ctx.createLinearGradient(-17,0,17,0);
-    bodyGrad.addColorStop(0, this._shadeColor(this.color, -35));
-    bodyGrad.addColorStop(0.25, this._shadeColor(this.color, 20));
-    bodyGrad.addColorStop(0.5, this._shadeColor(this.color, 35));
-    bodyGrad.addColorStop(0.75, this._shadeColor(this.color, 20));
-    bodyGrad.addColorStop(1, this._shadeColor(this.color, -35));
-    ctx.fillStyle = bodyGrad;
+
+    // ── Aerodynamic tapered body shape ──
+    // Front (negative Y) is the nose, rear (positive Y) is the tail
     ctx.beginPath();
-    ctx.roundRect(-17,-29,34,58,5);
+    ctx.moveTo(-7, -29);          // front-left nose tip
+    ctx.lineTo( 7, -29);          // front-right nose tip
+    ctx.bezierCurveTo(16, -22, 17, -10, 17, 0);   // right side front
+    ctx.lineTo(17, 15);           // right side rear
+    ctx.bezierCurveTo(17, 24, 12, 27, 8, 27);     // rear-right curve
+    ctx.lineTo(-8, 27);           // rear straight
+    ctx.bezierCurveTo(-12, 27, -17, 24, -17, 15); // rear-left curve
+    ctx.lineTo(-17, 0);           // left side rear
+    ctx.bezierCurveTo(-17, -10, -16, -22, -7, -29); // left side front
+    ctx.closePath();
+    // Body gradient
+    const bodyGrad = ctx.createLinearGradient(-17,0,17,0);
+    bodyGrad.addColorStop(0,   this._shadeColor(this.color, -40));
+    bodyGrad.addColorStop(0.2, this._shadeColor(this.color,  15));
+    bodyGrad.addColorStop(0.5, this._shadeColor(this.color,  40));
+    bodyGrad.addColorStop(0.8, this._shadeColor(this.color,  15));
+    bodyGrad.addColorStop(1,   this._shadeColor(this.color, -40));
+    ctx.fillStyle = bodyGrad;
     ctx.fill();
+    // Body outline for crispness
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Side panel depth shading
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(-18,-18, 5, 42);
+    ctx.fillRect( 13,-18, 5, 42);
+
     // Racing stripe down the center
-    const stripeGrad = ctx.createLinearGradient(0,-29,0,29);
-    stripeGrad.addColorStop(0,'rgba(255,255,255,0.35)');
+    const stripeGrad = ctx.createLinearGradient(0,-29,0,27);
+    stripeGrad.addColorStop(0,'rgba(255,255,255,0.38)');
     stripeGrad.addColorStop(0.5,'rgba(255,255,255,0.18)');
-    stripeGrad.addColorStop(1,'rgba(255,255,255,0.10)');
+    stripeGrad.addColorStop(1,'rgba(255,255,255,0.08)');
     ctx.fillStyle = stripeGrad;
-    ctx.fillRect(-5,-28,10,56);
-    // Rear spoiler
-    ctx.fillStyle = this._shadeColor(this.color, -50);
-    ctx.fillRect(-18, 26, 36, 5);
-    ctx.fillRect(-4, 22, 8, 9);
+    ctx.fillRect(-4,-27,8,52);
+
+    // Rear spoiler / diffuser
+    ctx.fillStyle = this._shadeColor(this.color, -55);
+    ctx.fillRect(-16, 23, 32, 5);
+    ctx.fillRect(-3, 19, 6, 9);
+
+    // Engine intake scoop on hood
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.roundRect(-3,-27,6,8,2); ctx.fill();
+
     // Windshield with gradient (reflective look)
-    const wGrad = ctx.createLinearGradient(-12,-20,12,-6);
-    wGrad.addColorStop(0,'rgba(160,220,255,0.85)');
-    wGrad.addColorStop(0.4,'rgba(120,200,255,0.55)');
-    wGrad.addColorStop(1,'rgba(80,160,220,0.3)');
+    const wGrad = ctx.createLinearGradient(-11,-20,11,-6);
+    wGrad.addColorStop(0,'rgba(160,225,255,0.90)');
+    wGrad.addColorStop(0.4,'rgba(120,200,255,0.58)');
+    wGrad.addColorStop(1,'rgba(80,160,220,0.30)');
     ctx.fillStyle = wGrad;
-    ctx.beginPath(); ctx.roundRect(-11,-20,22,14,2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-10,-20,20,13,2); ctx.fill();
     // Windshield glare
-    ctx.fillStyle='rgba(255,255,255,0.35)';
-    ctx.beginPath(); ctx.roundRect(-9,-19,8,5,1); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.38)';
+    ctx.beginPath(); ctx.roundRect(-8,-19,7,4,1); ctx.fill();
+
     // Rear window
-    const rwGrad = ctx.createLinearGradient(-10,8,10,18);
-    rwGrad.addColorStop(0,'rgba(80,160,220,0.4)');
+    const rwGrad = ctx.createLinearGradient(-9,8,9,17);
+    rwGrad.addColorStop(0,'rgba(80,160,220,0.45)');
     rwGrad.addColorStop(1,'rgba(60,130,190,0.25)');
     ctx.fillStyle = rwGrad;
-    ctx.beginPath(); ctx.roundRect(-10,8,20,10,2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-9,8,18,9,2); ctx.fill();
+
     // Wheels — front wheels show steer angle, all with rim highlights
     const wheelDefs = [
-      {cx:-18.5, cy:-20, front:true},
-      {cx: 11.5, cy:-20, front:true},
-      {cx:-18.5, cy: 12, front:false},
-      {cx: 11.5, cy: 12, front:false}
+      {cx:-18, cy:-18, front:true},
+      {cx: 11, cy:-18, front:true},
+      {cx:-18, cy: 10, front:false},
+      {cx: 11, cy: 10, front:false}
     ];
     for (const wd of wheelDefs) {
       ctx.save();
       ctx.translate(wd.cx + 3.5, wd.cy + 8);
       if (wd.front) ctx.rotate(this.steerAngle * 0.65);
-      ctx.fillStyle='#1a1a1a';
-      ctx.beginPath(); ctx.roundRect(-3.5,-8,7,16,2); ctx.fill();
-      ctx.fillStyle='rgba(200,200,200,0.55)';
-      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, PI2); ctx.fill();
-      ctx.fillStyle='rgba(255,255,255,0.3)';
-      ctx.beginPath(); ctx.arc(0, 0, 1.2, 0, PI2); ctx.fill();
+      // Tire
+      ctx.fillStyle='#111';
+      ctx.beginPath(); ctx.roundRect(-4,-8,8,16,2.5); ctx.fill();
+      // Rim
+      ctx.fillStyle='rgba(210,210,210,0.70)';
+      ctx.beginPath(); ctx.arc(0,0,3,0,PI2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.40)';
+      ctx.beginPath(); ctx.arc(-0.8,-0.8,1.4,0,PI2); ctx.fill();
       ctx.restore();
     }
     // Headlights at front — glow effect
-    ctx.shadowColor='rgba(255,255,200,0.9)';
-    ctx.shadowBlur=8;
-    ctx.fillStyle='rgba(255,255,190,0.95)';
-    ctx.beginPath(); ctx.arc(-9,-26,4,0,PI2); ctx.fill();
-    ctx.beginPath(); ctx.arc(9,-26,4,0,PI2); ctx.fill();
+    ctx.shadowColor='rgba(255,255,180,0.95)';
+    ctx.shadowBlur=10;
+    ctx.fillStyle='rgba(255,255,200,0.98)';
+    ctx.beginPath(); ctx.arc(-8,-27,3.5,0,PI2); ctx.fill();
+    ctx.beginPath(); ctx.arc( 8,-27,3.5,0,PI2); ctx.fill();
     ctx.shadowBlur=0;
     // Tail lights at rear — red glow
-    ctx.shadowColor='rgba(220,20,20,0.8)';
-    ctx.shadowBlur=6;
+    ctx.shadowColor='rgba(220,20,20,0.85)';
+    ctx.shadowBlur=7;
     ctx.fillStyle='#ee1111';
-    ctx.beginPath(); ctx.roundRect(-13,24,9,5,1); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(4,24,9,5,1); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-12,22,8,5,1); ctx.fill();
+    ctx.beginPath(); ctx.roundRect( 4,22,8,5,1); ctx.fill();
     ctx.shadowBlur=0;
     ctx.restore();
     // Name tag
@@ -1171,48 +1250,93 @@ class Player extends Car {
     }
   }
   draw(ctx) {
-    // Boost / nitro flame behind car
+    // Boost / nitro flame behind car (y>0 = rear of car)
     if (this.activeEffects.boost || this._nitroOn) {
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.heading + PI/2);
-      const flameLen = this.activeEffects.boost ? 45 + rng(0,12) : 30 + rng(0,8);
-      const grd = ctx.createLinearGradient(0, 30, 0, 30 + flameLen);
-      if (this._nitroOn && !this.activeEffects.boost) {
-        grd.addColorStop(0, 'rgba(80,180,255,0.95)');
-        grd.addColorStop(0.5,'rgba(0,120,255,0.6)');
-        grd.addColorStop(1, 'rgba(0,60,200,0)');
+      const flameLen = this.activeEffects.boost ? 50 + rng(0,15) : 32 + rng(0,10);
+      const isNitro = this._nitroOn && !this.activeEffects.boost;
+      // Outer flame
+      const grd = ctx.createLinearGradient(0, 27, 0, 27 + flameLen);
+      if (isNitro) {
+        grd.addColorStop(0,   'rgba(120,220,255,0.98)');
+        grd.addColorStop(0.35,'rgba(40,140,255,0.75)');
+        grd.addColorStop(0.7, 'rgba(0,80,220,0.40)');
+        grd.addColorStop(1,   'rgba(0,40,180,0)');
       } else {
-        grd.addColorStop(0, 'rgba(255,180,0,0.95)');
-        grd.addColorStop(0.5,'rgba(255,60,0,0.65)');
-        grd.addColorStop(1, 'rgba(200,0,0,0)');
+        grd.addColorStop(0,   'rgba(255,210,50,0.98)');
+        grd.addColorStop(0.35,'rgba(255,100,0,0.75)');
+        grd.addColorStop(0.7, 'rgba(200,20,0,0.40)');
+        grd.addColorStop(1,   'rgba(160,0,0,0)');
       }
       ctx.fillStyle = grd;
       ctx.beginPath();
-      ctx.moveTo(-9, 30); ctx.lineTo(9, 30); ctx.lineTo(0, 30 + flameLen);
+      ctx.moveTo(-8, 27); ctx.lineTo(8, 27);
+      ctx.bezierCurveTo(6, 27+flameLen*0.5, 3, 27+flameLen*0.85, 0, 27+flameLen);
+      ctx.bezierCurveTo(-3, 27+flameLen*0.85, -6, 27+flameLen*0.5, -8, 27);
+      ctx.closePath(); ctx.fill();
+      // Inner bright core
+      const core = ctx.createLinearGradient(0, 27, 0, 27 + flameLen*0.55);
+      if (isNitro) {
+        core.addColorStop(0,'rgba(255,255,255,0.9)');
+        core.addColorStop(1,'rgba(80,200,255,0)');
+      } else {
+        core.addColorStop(0,'rgba(255,255,200,0.9)');
+        core.addColorStop(1,'rgba(255,180,0,0)');
+      }
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.moveTo(-4, 27); ctx.lineTo(4, 27);
+      ctx.lineTo(0, 27 + flameLen*0.55);
       ctx.closePath(); ctx.fill();
       ctx.restore();
     }
-    // Ghost mode – draw semi-transparent
+    // Ghost mode – draw semi-transparent with shimmer
     if (this.activeEffects.ghost_mode) {
-      ctx.save(); ctx.globalAlpha = 0.42;
+      const shimmer = 0.30 + 0.15 * Math.sin(Date.now() * 0.005);
+      ctx.save(); ctx.globalAlpha = shimmer;
       super.draw(ctx);
+      // Blue shimmer outline
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.heading + PI/2);
+      ctx.strokeStyle = 'rgba(100,200,255,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-7,-29); ctx.bezierCurveTo(16,-22,17,-10,17,0);
+      ctx.lineTo(17,15); ctx.bezierCurveTo(17,24,12,27,8,27);
+      ctx.lineTo(-8,27); ctx.bezierCurveTo(-12,27,-17,24,-17,15);
+      ctx.lineTo(-17,0); ctx.bezierCurveTo(-17,-10,-16,-22,-7,-29);
+      ctx.closePath(); ctx.stroke();
       ctx.restore();
       return;
     }
     // Normal draw
     super.draw(ctx);
-    // Shield bubble
+    // Shield bubble — pulsing hexagonal energy shield
     if (this.activeEffects.shield) {
       const prog = clamp(this.activeEffects.shield / 5000, 0, 1);
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.006);
       ctx.save();
-      ctx.globalAlpha = 0.12 + prog * 0.18;
-      ctx.fillStyle = '#60aaff';
-      ctx.beginPath(); ctx.arc(this.x, this.y, 40, 0, PI2); ctx.fill();
-      ctx.globalAlpha = 0.45 + prog * 0.25;
-      ctx.strokeStyle = '#80ccff';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(this.x, this.y, 40, 0, PI2); ctx.stroke();
+      // Outer glow fill
+      const shGrad = ctx.createRadialGradient(this.x,this.y,20,this.x,this.y,46);
+      shGrad.addColorStop(0,'rgba(80,160,255,0)');
+      shGrad.addColorStop(0.7,'rgba(80,160,255,0.08)');
+      shGrad.addColorStop(1,`rgba(120,200,255,${0.12 + pulse*0.08})`);
+      ctx.fillStyle = shGrad;
+      ctx.beginPath(); ctx.arc(this.x, this.y, 46, 0, PI2); ctx.fill();
+      // Animated ring
+      ctx.globalAlpha = 0.5 + prog * 0.3 + pulse * 0.15;
+      ctx.strokeStyle = `hsl(${200 + pulse*20},90%,${60+pulse*20}%)`;
+      ctx.lineWidth = 2 + pulse * 1.5;
+      ctx.shadowColor = '#80ccff';
+      ctx.shadowBlur = 8 + pulse * 6;
+      ctx.beginPath(); ctx.arc(this.x, this.y, 40 + pulse * 3, 0, PI2); ctx.stroke();
+      // Second inner ring
+      ctx.globalAlpha = 0.25 + pulse * 0.15;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(this.x, this.y, 30, 0, PI2); ctx.stroke();
+      ctx.shadowBlur = 0;
       ctx.restore();
     }
   }
@@ -1342,14 +1466,40 @@ class Player extends Car {
       const ds = abslat * dt * 0.001;
       this.score += ds * 2;
       this.driftScore += ds * 2;
-      if (particles) particles.emit(this.x,this.y,{color:'rgba(180,180,180,0.7)',size:8,life:600,vx:rng(-30,30),vy:rng(-30,30),drag:0.92});
+      // Varied tire smoke for drifting — two puffs from rear wheels
+      if (particles && Math.random() > 0.45) {
+        const ex = this.x - Math.cos(this.heading)*28, ey = this.y - Math.sin(this.heading)*28;
+        const side = Math.sin(this.heading);
+        const sideX = Math.cos(this.heading + PI/2) * 8;
+        const sideY = Math.sin(this.heading + PI/2) * 8;
+        const grayVal = Math.floor(rng(155, 200));
+        const alpha = rng(0.50, 0.75);
+        for (const s of [-1, 1]) {
+          particles.emit(ex+sideX*s, ey+sideY*s, {
+            color:`rgba(${grayVal},${grayVal},${grayVal},${alpha})`,
+            size: rng(6,12), life: rng(500,750),
+            vx: rng(-25,25), vy: rng(-25,25), drag: 0.90
+          });
+        }
+      }
     } else { this.drifting = false; }
     // Exhaust smoke
     this.exhaustTimer += dt;
-    if (this.exhaustTimer > 80 && input.gas && particles) {
+    if (this.exhaustTimer > 70 && input.gas && particles) {
       this.exhaustTimer = 0;
       const ex = this.x - Math.cos(this.heading)*32, ey = this.y - Math.sin(this.heading)*32;
-      particles.emit(ex,ey,{color:'rgba(100,100,100,0.4)',size:5,life:400,vx:rng(-15,15),vy:rng(-15,15),drag:0.94});
+      const g = Math.floor(rng(90,120));
+      particles.emit(ex,ey,{color:`rgba(${g},${g},${g},0.38)`,size:rng(4,7),life:rng(350,500),vx:rng(-18,18),vy:rng(-18,18),drag:0.93});
+    }
+    // Dust when driving on gravel / off-road
+    if (particles) {
+      const nearDist = track ? track.nearest(this.x,this.y).dist : 0;
+      if (nearDist > ROAD_WIDTH * 0.45 && Math.abs(this.speed) > 10 && Math.random() > 0.55) {
+        particles.emit(this.x, this.y, {
+          color: `rgba(${Math.floor(rng(160,200))},${Math.floor(rng(130,160))},${Math.floor(rng(80,110))},${rng(0.3,0.55)})`,
+          size: rng(5,9), life: rng(400,700), vx: rng(-20,20), vy: rng(-20,20), drag: 0.91
+        });
+      }
     }
     // RPM and gear
     const speedRatio = Math.abs(this.speed)/cfg.topSpeed;
@@ -1405,6 +1555,8 @@ class AI extends Car {
     this._overtakeTimer      = 0;
     this._overtakeSide       = 0;
     this._targetRacingOffset = 0;
+    this._offTrackTimer      = 0;  // how long AI has been stuck/off-track
+    this._wrongWayTimer      = 0;  // how long AI has been going wrong way
   }
 
   addItem(type) {
@@ -1806,6 +1958,41 @@ class AI extends Car {
       particles.emit(ex, ey, {color:'rgba(120,120,120,0.35)',size:4,life:320,vx:rng(-12,12),vy:rng(-12,12),drag:0.94});
     }
     this.updateLap(track, nearest);
+
+    // === OFF-TRACK RECOVERY: teleport AI back if stuck off-track too long ===
+    if (nearest.dist > ROAD_WIDTH * 0.6) {
+      this._offTrackTimer += dt;
+    } else {
+      this._offTrackTimer = Math.max(0, this._offTrackTimer - dt * 2);
+    }
+    if (this._offTrackTimer > 3500) {
+      // Respawn on nearest track point, facing the correct direction
+      const sp = track.spline[nearest.idx];
+      const nextSp = track.spline[(nearest.idx + 3) % track.spline.length];
+      this.x = sp.x;
+      this.y = sp.y;
+      this.heading = Math.atan2(nextSp.y - sp.y, nextSp.x - sp.x);
+      this.speed = 10;
+      this.lateralSpeed = 0;
+      this.angularVel = 0;
+      this._offTrackTimer = 0;
+      this._recoveryTimer = 2000;
+    }
+
+    // === WRONG-WAY DETECTION: reverse heading if going consistently backwards ===
+    const forwardDot = Math.cos(this.heading) * Math.cos(desiredH) + Math.sin(this.heading) * Math.sin(desiredH);
+    if (forwardDot < -0.5 && this.speed > 5) {
+      this._wrongWayTimer += dt;
+      if (this._wrongWayTimer > 1800) {
+        // Gradually steer toward correct direction
+        this.heading = desiredH;
+        this.speed *= 0.4;
+        this.angularVel = 0;
+        this._wrongWayTimer = 0;
+      }
+    } else {
+      this._wrongWayTimer = Math.max(0, this._wrongWayTimer - dt);
+    }
   }
 }
 
@@ -2362,7 +2549,10 @@ class Game {
               b.angularVel -= angleDiff(b.heading, impactAngle) * 0.08;
             }
             const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-            this.particles.burst(mx,my,8,{color:'#ffff80',minSpd:80,maxSpd:160,life:400,size:4});
+            // More varied collision sparks — mix of yellow, orange, white
+            this.particles.burst(mx,my,6,{color:'#ffff80',minSpd:80,maxSpd:180,life:380,size:4});
+            this.particles.burst(mx,my,4,{color:'#ff8800',minSpd:60,maxSpd:140,life:300,size:3});
+            this.particles.burst(mx,my,3,{color:'#ffffff',minSpd:100,maxSpd:220,life:250,size:2});
             if (a===this.player||b===this.player) {
               if (!this.player.activeEffects.shield && !this.player.activeEffects.ghost_mode) {
                 this.player.hp-=3;
@@ -2452,13 +2642,23 @@ class Game {
     ctx.save();
     // Screen shake
     if (this.shake>0.5) ctx.translate(rng(-this.shake,this.shake)*0.5, rng(-this.shake,this.shake)*0.5);
-    // Clear
-    ctx.fillStyle='#3a7a2a';
+    // Clear with gradient background for nicer grass
+    const bgGrad = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.75);
+    bgGrad.addColorStop(0,'#4a8f35');
+    bgGrad.addColorStop(0.5,'#3c7a2a');
+    bgGrad.addColorStop(1,'#2e5e1e');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0,0,W,H);
     if (!this.track || !this.player) { ctx.restore(); return; }
-    // World transform
+    // Speed-dependent camera zoom: zoom out slightly at high speed
+    const speedRatio = clamp(Math.abs(this.player.speed) / this.player.carConfig.topSpeed, 0, 1);
+    const targetZoom = lerp(1.0, 0.82, speedRatio * speedRatio);
+    this._cameraZoom = damp(this._cameraZoom || 1.0, targetZoom, 3, 0.016);
+    // World transform with zoom
     ctx.save();
-    ctx.translate(W/2 - this.cameraX, H/2 - this.cameraY);
+    ctx.translate(W/2, H/2);
+    ctx.scale(this._cameraZoom, this._cameraZoom);
+    ctx.translate(-this.cameraX, -this.cameraY);
     // Track
     this.track.draw(ctx);
     // Tire marks
@@ -2490,6 +2690,8 @@ class Game {
       ctx.fillText('◄ REAR VIEW ►', W/2, 38);
       ctx.restore();
     }
+    // Wrong-way indicator
+    this._drawWrongWay(ctx, W, H);
     // Notifications
     this.notifs.draw(ctx, W, H);
     // Touch controls
@@ -2499,6 +2701,40 @@ class Game {
     this._drawMinimap();
     // Tachometer
     this._drawTacho();
+  }
+_drawWrongWay(ctx, W, H) {
+    if (!this.player || !this.track) return;
+    // Compare player's movement direction to track direction at current position
+    const nearest = this.track.nearest(this.player.x, this.player.y);
+    const SN = this.track.spline.length;
+    const nextIdx = (nearest.idx + 4) % SN;
+    const sp = this.track.spline[nearest.idx];
+    const sp2 = this.track.spline[nextIdx];
+    const trackDirX = sp2.x - sp.x;
+    const trackDirY = sp2.y - sp.y;
+    const carDirX = Math.cos(this.player.heading);
+    const carDirY = Math.sin(this.player.heading);
+    const dot = carDirX * trackDirX + carDirY * trackDirY;
+    const wrongWay = dot < 0 && Math.abs(this.player.speed) > 15;
+    if (!wrongWay) { this._wrongWayAlpha = (this._wrongWayAlpha || 0) * 0.85; }
+    else { this._wrongWayAlpha = Math.min(1, (this._wrongWayAlpha || 0) + 0.07); }
+    if ((this._wrongWayAlpha || 0) < 0.05) return;
+    const pulse = 0.65 + 0.35 * Math.sin(Date.now() * 0.008);
+    ctx.save();
+    ctx.globalAlpha = (this._wrongWayAlpha || 0) * pulse;
+    ctx.fillStyle = '#ff2222';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    const bx = W/2, by = 90, bw = 200, bh = 38;
+    ctx.beginPath(); ctx.roundRect(bx - bw/2, by - bh/2, bw, bh, 8); ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚠ WRONG WAY ⚠', bx, by);
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
   }
   _drawMinimap() {
     if (!this.track || !this.player) return;
@@ -2521,12 +2757,29 @@ class Game {
     const scale = maxR > 0 ? (MW/2 - padding) / maxR : 0.033;
     const ox=MW/2-cx*scale, oy=MH/2-cy*scale;
     this.track.drawMinimap(mc,scale,ox,oy);
-    // Cars
+    // Cars with direction arrows
     const allCars=[this.player,...this.ais];
     for (const c of allCars) {
       const mx=c.x*scale+ox, my=c.y*scale+oy;
-      mc.fillStyle=c===this.player?'#ffffff':c.color;
-      mc.beginPath(); mc.arc(mx,my,c===this.player?4:2.5,0,PI2); mc.fill();
+      const isPlayer = c===this.player;
+      const r = isPlayer ? 4.5 : 3;
+      mc.save();
+      mc.translate(mx, my);
+      mc.rotate(c.heading);
+      // Arrow pointing forward
+      mc.fillStyle = isPlayer ? '#ffffff' : c.color;
+      mc.beginPath();
+      mc.moveTo(0, -r*1.6);    // front tip
+      mc.lineTo(-r*0.8, r*0.8); // rear left
+      mc.lineTo(r*0.8, r*0.8);  // rear right
+      mc.closePath();
+      mc.fill();
+      if (isPlayer) {
+        mc.strokeStyle = '#ffff80';
+        mc.lineWidth = 1;
+        mc.stroke();
+      }
+      mc.restore();
     }
   }
   _drawTacho() {
