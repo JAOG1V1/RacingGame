@@ -2580,6 +2580,10 @@ class Game {
     const targetCamY = this.player.y + dir * Math.sin(this.player.heading) * lookahead;
     this.cameraX = damp(this.cameraX, targetCamX, CAMERA_DAMPING, dt * 0.001);
     this.cameraY = damp(this.cameraY, targetCamY, CAMERA_DAMPING, dt * 0.001);
+    // Speed-dependent camera zoom: zoom out slightly at high speed
+    const speedRatio = clamp(Math.abs(this.player.speed) / this.player.carConfig.topSpeed, 0, 1);
+    const targetZoom = lerp(1.0, 0.82, speedRatio * speedRatio);
+    this._cameraZoom = damp(this._cameraZoom || 1.0, targetZoom, 3, dt * 0.001);
     this.shake *= 0.88;
     // HUD
     this._updateHUD();
@@ -2650,14 +2654,10 @@ class Game {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0,0,W,H);
     if (!this.track || !this.player) { ctx.restore(); return; }
-    // Speed-dependent camera zoom: zoom out slightly at high speed
-    const speedRatio = clamp(Math.abs(this.player.speed) / this.player.carConfig.topSpeed, 0, 1);
-    const targetZoom = lerp(1.0, 0.82, speedRatio * speedRatio);
-    this._cameraZoom = damp(this._cameraZoom || 1.0, targetZoom, 3, 0.016);
-    // World transform with zoom
+    // World transform with zoom (zoom is updated in _update())
     ctx.save();
     ctx.translate(W/2, H/2);
-    ctx.scale(this._cameraZoom, this._cameraZoom);
+    ctx.scale(this._cameraZoom || 1.0, this._cameraZoom || 1.0);
     ctx.translate(-this.cameraX, -this.cameraY);
     // Track
     this.track.draw(ctx);
@@ -2691,7 +2691,7 @@ class Game {
       ctx.restore();
     }
     // Wrong-way indicator
-    this._drawWrongWay(ctx, W, H);
+    this._drawWrongWayIndicator(ctx, W, H);
     // Notifications
     this.notifs.draw(ctx, W, H);
     // Touch controls
@@ -2702,7 +2702,7 @@ class Game {
     // Tachometer
     this._drawTacho();
   }
-_drawWrongWay(ctx, W, H) {
+  _drawWrongWayIndicator(ctx, W, H) {
     if (!this.player || !this.track) return;
     // Compare player's movement direction to track direction at current position
     const nearest = this.track.nearest(this.player.x, this.player.y);
