@@ -453,7 +453,7 @@ class Missile {
     // hit detection
     for (const car of cars) {
       if (dist(this.x, this.y, car.x, car.y) < 30) {
-        car.angularVel = (Math.random()-0.5)*8;
+        car.angularVel = (Math.random()-0.5)*2;
         car.speed *= 0.3;
         this.active = false;
         if (this.particles) this.particles.burst(this.x,this.y,12,{color:'#ff4400',minSpd:80,maxSpd:200,life:500});
@@ -803,7 +803,7 @@ class Player extends Car {
       case 'repair': this.hp = Math.min(100, this.hp+40); break;
       case 'nitro_refill': this.nitro = this.carConfig.nitroMax; break;
       case 'mine': if (oilSlicks) oilSlicks.push(new OilSlick(this.x+rng(-20,20),this.y+rng(-20,20))); break;
-      case 'lightning': for (const c of allCars) { c.speed*=0.2; c.angularVel+=(Math.random()-0.5)*3; } if (audio) audio.playEffect('thunder'); break;
+      case 'lightning': for (const c of allCars) { c.speed*=0.2; c.angularVel+=(Math.random()-0.5)*1; } if (audio) audio.playEffect('thunder'); break;
       case 'ghost_mode': this.activeEffects.ghost_mode = 4000; break;
     }
   }
@@ -820,7 +820,7 @@ class Player extends Car {
     if (input.steer !== 0) {
       this.steerAngle = clamp(this.steerAngle + input.steer * steerRate, -0.6, 0.6);
     } else {
-      this.steerAngle *= 0.8;
+      this.steerAngle *= 0.55;
     }
     // Gas / Brake
     const boostMul = this.activeEffects.boost ? rng(1.45,1.50) : 1.0;
@@ -844,14 +844,16 @@ class Player extends Car {
       const turnRate = (this.speed / this.wheelbase) * Math.tan(this.steerAngle) * grip;
       this.angularVel = lerp(this.angularVel, turnRate, 0.2);
     } else {
-      this.angularVel *= 0.85;
+      this.angularVel *= 0.7;
     }
-    this.heading += this.angularVel * dt * 0.001 * 60;
+    this.angularVel *= 0.92;
+    this.angularVel = clamp(this.angularVel, -3, 3);
+    this.heading += this.angularVel * dt * 0.001 * 30;
     // Lateral speed (drift)
-    const latFriction = input.handbrake ? 0.92 : 0.97;
+    const latFriction = input.handbrake ? 0.92 : 0.94;
     this.lateralSpeed *= latFriction;
     if (Math.abs(this.speed) > 1) {
-      const sideForce = this.angularVel * this.speed * 0.15 * (1-grip);
+      const sideForce = this.angularVel * this.speed * 0.06 * (1-grip);
       this.lateralSpeed += sideForce;
     }
     // Move
@@ -879,8 +881,8 @@ class Player extends Car {
     if (oilSlicks) {
       for (const o of oilSlicks) {
         if (o.active && dist(this.x,this.y,o.x,o.y) < 50) {
-          this.lateralSpeed += rng(-80,80);
-          this.steerAngle *= 2;
+          this.lateralSpeed += rng(-30,30);
+          this.steerAngle *= 1.3;
         }
       }
     }
@@ -998,8 +1000,10 @@ class AI extends Car {
     if (Math.abs(this.speed) > 0.5) {
       this.angularVel = (this.speed/this.wheelbase)*Math.tan(this.steerAngle)*grip;
     }
-    this.heading += this.angularVel * dt*0.001*60;
-    this.lateralSpeed *= 0.97;
+    this.heading += this.angularVel * dt*0.001*30;
+    this.angularVel *= 0.92;
+    this.angularVel = clamp(this.angularVel, -3, 3);
+    this.lateralSpeed *= 0.94;
     this.x += (Math.cos(this.heading)*this.speed - Math.sin(this.heading)*this.lateralSpeed)*dt*0.001*60;
     this.y += (Math.sin(this.heading)*this.speed + Math.cos(this.heading)*this.lateralSpeed)*dt*0.001*60;
     this.updateLap(track);
@@ -1496,8 +1500,8 @@ class Game {
           a.x+=nx*sep; a.y+=ny*sep;
           b.x-=nx*sep; b.y-=ny*sep;
           a.speed*=0.9; b.speed*=0.9;
-          a.angularVel+=(Math.random()-0.5)*1;
-          b.angularVel+=(Math.random()-0.5)*1;
+          a.angularVel+=(Math.random()-0.5)*0.3;
+          b.angularVel+=(Math.random()-0.5)*0.3;
           const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
           this.particles.burst(mx,my,8,{color:'#ffff80',minSpd:80,maxSpd:160,life:400,size:4});
           if (a===this.player||b===this.player) {
