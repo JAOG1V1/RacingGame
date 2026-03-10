@@ -384,7 +384,7 @@ class Weather {
       grad.addColorStop(1,'rgba(0,0,0,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      const ha = heading - PI/2;
+      const ha = heading + PI/2;
       ctx.moveTo(cx2,cy2);
       ctx.arc(cx2,cy2,280,ha-0.5,ha+0.5);
       ctx.closePath();
@@ -585,7 +585,7 @@ class Ghost {
     if (!frame) return;
     ctx.save();
     ctx.translate(frame.x, frame.y);
-    ctx.rotate(frame.heading - PI/2);
+    ctx.rotate(frame.heading + PI/2);
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
@@ -1010,7 +1010,7 @@ class Car {
   draw(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.rotate(this.heading - PI/2);
+    ctx.rotate(this.heading + PI/2);
     // Shadow
     ctx.globalAlpha = 0.18;
     ctx.fillStyle = '#000';
@@ -1058,26 +1058,33 @@ class Car {
     rwGrad.addColorStop(1,'rgba(60,130,190,0.25)');
     ctx.fillStyle = rwGrad;
     ctx.beginPath(); ctx.roundRect(-10,8,20,10,2); ctx.fill();
-    // Wheels — rounded with rim highlights
-    const wheels = [[-22,-22],[ 15,-22],[-22, 14],[ 15, 14]];
-    for (const [wx,wy] of wheels) {
-      // Tire
+    // Wheels — front wheels show steer angle, all with rim highlights
+    const wheelDefs = [
+      {cx:-18.5, cy:-20, front:true},
+      {cx: 11.5, cy:-20, front:true},
+      {cx:-18.5, cy: 12, front:false},
+      {cx: 11.5, cy: 12, front:false}
+    ];
+    for (const wd of wheelDefs) {
+      ctx.save();
+      ctx.translate(wd.cx + 3.5, wd.cy + 8);
+      if (wd.front) ctx.rotate(this.steerAngle * 0.65);
       ctx.fillStyle='#1a1a1a';
-      ctx.beginPath(); ctx.roundRect(wx,wy,7,16,2); ctx.fill();
-      // Rim highlight
+      ctx.beginPath(); ctx.roundRect(-3.5,-8,7,16,2); ctx.fill();
       ctx.fillStyle='rgba(200,200,200,0.55)';
-      ctx.beginPath(); ctx.arc(wx+3.5, wy+8, 2.5, 0, PI2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, PI2); ctx.fill();
       ctx.fillStyle='rgba(255,255,255,0.3)';
-      ctx.beginPath(); ctx.arc(wx+3.5, wy+8, 1.2, 0, PI2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, 1.2, 0, PI2); ctx.fill();
+      ctx.restore();
     }
-    // Headlights — glow effect
+    // Headlights at front — glow effect
     ctx.shadowColor='rgba(255,255,200,0.9)';
     ctx.shadowBlur=8;
     ctx.fillStyle='rgba(255,255,190,0.95)';
     ctx.beginPath(); ctx.arc(-9,-26,4,0,PI2); ctx.fill();
     ctx.beginPath(); ctx.arc(9,-26,4,0,PI2); ctx.fill();
     ctx.shadowBlur=0;
-    // Tail lights — red glow
+    // Tail lights at rear — red glow
     ctx.shadowColor='rgba(220,20,20,0.8)';
     ctx.shadowBlur=6;
     ctx.fillStyle='#ee1111';
@@ -1168,7 +1175,7 @@ class Player extends Car {
     if (this.activeEffects.boost || this._nitroOn) {
       ctx.save();
       ctx.translate(this.x, this.y);
-      ctx.rotate(this.heading - PI/2);
+      ctx.rotate(this.heading + PI/2);
       const flameLen = this.activeEffects.boost ? 45 + rng(0,12) : 30 + rng(0,8);
       const grd = ctx.createLinearGradient(0, 30, 0, 30 + flameLen);
       if (this._nitroOn && !this.activeEffects.boost) {
@@ -1611,10 +1618,11 @@ class AI extends Car {
       this._targetRacingOffset = damp(this._targetRacingOffset, 0, 3, dt * 0.001);
     }
 
-    // Steer toward computed target
+    // Steer toward computed target — use damped steering for smoother response
     const desiredH = Math.atan2(tY - this.y, tX - this.x);
     const diff = angleDiff(this.heading, desiredH);
-    this.steerAngle = clamp(diff * lerp(1.1, 1.5, this.skill), -0.6, 0.6);
+    const targetSteer = clamp(diff * lerp(1.0, 1.4, this.skill), -0.6, 0.6);
+    this.steerAngle = damp(this.steerAngle, targetSteer, lerp(6, 9, this.skill), dt * 0.001);
 
     // === 2. PREDICTIVE BRAKING ===
     // Look ahead at upcoming curvature and begin braking before tight turns
@@ -1670,7 +1678,9 @@ class AI extends Car {
         // Allow side-by-side racing: skip avoidance when car is beside us at similar speed
         const isBeside = Math.abs(hDiff) > 0.8 && Math.abs(hDiff) < 2.3;
         if (!isBeside) {
-          this.heading += normalizeAngle(aToC - this.heading + PI) * ((90 - d2) / 90 * 0.06);
+          // Steer away via steerAngle (physics-consistent, avoids jerky heading jumps)
+          const avoidDir = angleDiff(this.heading, aToC + PI);
+          this.steerAngle = clamp(this.steerAngle + avoidDir * ((90 - d2) / 90) * 0.22, -0.6, 0.6);
           // Brake when approaching a slower car from behind
           if (Math.abs(hDiff) < 0.4 && this.speed > c.speed + 15) {
             this.speed = damp(this.speed, c.speed + 10, 3, dt * 0.001);
@@ -1778,10 +1788,11 @@ class AI extends Car {
       this.steerAngle += (Math.random() - 0.5) * lerp(0.06, 0, this.consistency);
     }
 
-    // Physics (use actual weather grip instead of hardcoded 0.9)
+    // Physics — damp angularVel like player for smoother turning
     const grip = weatherGrip * AI_BASE_GRIP_MULTIPLIER;
     if (Math.abs(this.speed) > 0.5) {
-      this.angularVel = (this.speed/this.wheelbase)*Math.tan(this.steerAngle)*grip;
+      const targetAngVel = (this.speed/this.wheelbase)*Math.tan(this.steerAngle)*grip;
+      this.angularVel = damp(this.angularVel, targetAngVel, 8, dt * 0.001);
     }
     this.heading += this.angularVel * dt*0.001*30;
     this.angularVel = damp(this.angularVel, 0, 5, dt * 0.001);
@@ -1789,6 +1800,11 @@ class AI extends Car {
     this.lateralSpeed *= Math.pow(0.15, dt * 0.001);
     this.x += (Math.cos(this.heading)*this.speed - Math.sin(this.heading)*this.lateralSpeed)*dt*0.001*60;
     this.y += (Math.sin(this.heading)*this.speed + Math.cos(this.heading)*this.lateralSpeed)*dt*0.001*60;
+    // Exhaust smoke (emit from rear of car)
+    if (particles && this.speed > 5 && Math.random() > 0.65) {
+      const ex = this.x - Math.cos(this.heading)*30, ey = this.y - Math.sin(this.heading)*30;
+      particles.emit(ex, ey, {color:'rgba(120,120,120,0.35)',size:4,life:320,vx:rng(-12,12),vy:rng(-12,12),drag:0.94});
+    }
     this.updateLap(track, nearest);
   }
 }
