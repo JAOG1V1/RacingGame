@@ -29,10 +29,10 @@ function catmullRom(p0, p1, p2, p3, t) {
 // CONFIG
 // ============================================================
 const CARS = [
-  { name:'Speedster', topSpeed:280, accel:0.28, brake:0.35, grip:0.88, nitroMax:100 },
-  { name:'Thunder',   topSpeed:260, accel:0.32, brake:0.32, grip:0.85, nitroMax:110 },
-  { name:'Phantom',   topSpeed:300, accel:0.24, brake:0.38, grip:0.92, nitroMax:90  },
-  { name:'Titan',     topSpeed:230, accel:0.36, brake:0.42, grip:0.80, nitroMax:120 }
+  { name:'Speedster', topSpeed:180, accel:0.28, brake:0.35, grip:0.88, nitroMax:100 },
+  { name:'Thunder',   topSpeed:170, accel:0.32, brake:0.32, grip:0.85, nitroMax:110 },
+  { name:'Phantom',   topSpeed:195, accel:0.24, brake:0.38, grip:0.92, nitroMax:90  },
+  { name:'Titan',     topSpeed:150, accel:0.36, brake:0.42, grip:0.80, nitroMax:120 }
 ];
 const COLORS = ['#e83030','#3080ff','#20c060','#f0c030','#cc40cc','#ff8020','#20cccc','#ffffff'];
 const TRACKS = [
@@ -824,13 +824,13 @@ class Player extends Car {
     }
     // Gas / Brake
     const boostMul = this.activeEffects.boost ? rng(1.45,1.50) : 1.0;
-    if (input.gas) this.speed += cfg.accel * boostMul * (dt*0.06);
+    if (input.gas) this.speed += cfg.accel * boostMul * (dt*0.004);
     else this.speed *= 0.985;
-    if (input.brake) this.speed -= cfg.brake * (dt*0.06);
-    this.speed = clamp(this.speed, -30, cfg.topSpeed * boostMul);
+    if (input.brake) this.speed -= cfg.brake * (dt*0.004);
+    this.speed = clamp(this.speed, -15, cfg.topSpeed * boostMul);
     // Nitro
     if (input.nitro && this.nitro > 0) {
-      this.speed += 0.4 * (dt*0.06);
+      this.speed += 0.4 * (dt*0.004);
       this.nitro -= 18 * dt * 0.001;
       this.nitroTimer += dt;
     } else {
@@ -970,7 +970,7 @@ class AI extends Car {
     // Curvature-based speed
     const curv = track.curvatureAt(targetIdx);
     const maxSpd = this.carConfig.topSpeed * this.skill * lerp(0.6, 1.0, curv);
-    if (this.speed < maxSpd) this.speed += this.carConfig.accel * this.skill * dt*0.06;
+    if (this.speed < maxSpd) this.speed += this.carConfig.accel * this.skill * dt*0.004;
     else this.speed *= 0.99;
     this.speed = clamp(this.speed, 0, this.carConfig.topSpeed);
     // Car avoidance
@@ -1424,7 +1424,7 @@ class Game {
     el.classList.remove('hide');
     let count = 3;
     const tick = () => {
-      num.textContent = count;
+      num.textContent = count > 0 ? count : 'GO!';
       num.style.color = count > 0 ? '#ffe060' : '#60ff60';
       num.style.animation = 'none';
       void num.offsetWidth;
@@ -1683,6 +1683,7 @@ class Game {
     document.getElementById('finishScreen').classList.remove('hide');
   }
   _loop(ts) {
+    if (this._lastTime === 0) { this._lastTime = ts; requestAnimationFrame(t => this._loop(t)); return; }
     const dt = Math.min(ts - this._lastTime, 50);
     this._lastTime = ts;
     // FPS
