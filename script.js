@@ -177,11 +177,16 @@ class AudioEngine {
 class Particles {
   constructor() {
     this.pool = [];
+    this._freeStack = [];
     this.active = [];
-    for (let i = 0; i < 1200; i++) this.pool.push({alive:false});
+    for (let i = 0; i < 1200; i++) {
+      this.pool.push({alive:false, _poolIdx:i});
+      this._freeStack.push(i);
+    }
   }
   _get() {
-    return this.pool.find(p => !p.alive) || {alive:false};
+    if (this._freeStack.length > 0) return this.pool[this._freeStack.pop()];
+    return {alive:false, _poolIdx:-1};
   }
   emit(x, y, opts={}) {
     const p = this._get();
@@ -194,7 +199,7 @@ class Particles {
     p.color = opts.color || '#fff';
     p.drag = opts.drag !== undefined ? opts.drag : 0.97;
     p.gravity = opts.gravity || 0;
-    if (!this.active.includes(p)) this.active.push(p);
+    this.active.push(p);
   }
   burst(x, y, count, opts={}) {
     for (let i = 0; i < count; i++) {
@@ -207,7 +212,7 @@ class Particles {
     for (let i = this.active.length - 1; i >= 0; i--) {
       const p = this.active[i];
       p.life -= dt;
-      if (p.life <= 0) { p.alive = false; this.active.splice(i,1); continue; }
+      if (p.life <= 0) { p.alive = false; if (p._poolIdx >= 0) this._freeStack.push(p._poolIdx); this.active.splice(i,1); continue; }
       p.vx *= p.drag; p.vy *= p.drag;
       p.vy += p.gravity * dt * 0.001;
       p.x += p.vx * dt * 0.001;
@@ -246,7 +251,11 @@ class TireMarks {
     for (const m of this.marks) m.age += dt;
   }
   prune() {
-    this.marks = this.marks.filter(m => m.age < m.maxAge);
+    let write = 0;
+    for (let i = 0; i < this.marks.length; i++) {
+      if (this.marks[i].age < this.marks[i].maxAge) this.marks[write++] = this.marks[i];
+    }
+    this.marks.length = write;
   }
   draw(ctx) {
     for (const m of this.marks) {
@@ -717,8 +726,8 @@ class Car {
     this.totalDist = 0;
     this.carConfig = CARS[0];
   }
-  updateLap(track) {
-    const res = track.nearest(this.x, this.y);
+  updateLap(track, nearest) {
+    const res = nearest || track.nearest(this.x, this.y);
     const newProg = res.idx / track.spline.length;
     if (newProg > 0.5) this.halfCheck = true;
     if (this.halfCheck && newProg < 0.1 && this.lapProgress > 0.85) {
@@ -821,16 +830,16 @@ class Player extends Car {
       if (this.activeEffects[k] <= 0) delete this.activeEffects[k];
     }
     // Steering
-    const steerRate = 0.06;
+    const steerRate = 3.6 * dt * 0.001;
     if (input.steer !== 0) {
-      this.steerAngle = clamp(this.steerAngle + input.steer * steerRate, -0.6, 0.6);
+      this.steerAngle = clamp(this.steerAngle + input.steer * steerRate, -0.7, 0.7);
     } else {
-      this.steerAngle *= 0.55;
+      this.steerAngle = damp(this.steerAngle, 0, 12, dt * 0.001);
     }
     // Gas / Brake
     const boostMul = this.activeEffects.boost ? rng(1.45,1.50) : 1.0;
     if (input.gas) this.speed += cfg.accel * boostMul * (dt*0.004);
-    else this.speed *= 0.985;
+    else this.speed *= Math.pow(0.4, dt * 0.001);
     if (input.brake) this.speed -= cfg.brake * (dt*0.004);
     this.speed = clamp(this.speed, -15, cfg.topSpeed * boostMul);
     // Nitro
@@ -847,15 +856,15 @@ class Player extends Car {
     // Angular velocity
     if (Math.abs(this.speed) > 0.5) {
       const turnRate = (this.speed / this.wheelbase) * Math.tan(this.steerAngle) * grip;
-      this.angularVel = lerp(this.angularVel, turnRate, 0.2);
+      this.angularVel = damp(this.angularVel, turnRate, 8, dt * 0.001);
     } else {
       this.angularVel *= 0.7;
     }
     this.heading += this.angularVel * dt * 0.001 * 30;
-    this.angularVel *= 0.92;
+    this.angularVel = damp(this.angularVel, 0, 5, dt * 0.001);
     this.angularVel = clamp(this.angularVel, -3, 3);
     // Lateral speed (drift)
-    const latFriction = 0.94;
+    const latFriction = Math.pow(input.handbrake ? 0.003 : 0.15, dt * 0.001);
     this.lateralSpeed *= latFriction;
     if (Math.abs(this.speed) > 1) {
       const sideForce = this.angularVel * this.speed * 0.06 * (1-grip);
@@ -893,7 +902,7 @@ class Player extends Car {
           if (!this.wallHitTime || now - this.wallHitTime > WALL_HIT_COOLDOWN_MS) {
             this.wallHitTime = now;
             this.hp -= 3;
-            this.angularVel += (Math.random() - 0.5) * 2;
+            this.angularVel += (Math.random() - 0.5) * 0.8;
             if (particles) particles.burst(this.x, this.y, 10, {color:'#ffdd44', minSpd:60, maxSpd:180, life:400, size:3});
             if (audio) audio.playEffect('impact');
             this.pendingShake = (this.pendingShake || 0) + 10;
@@ -951,7 +960,7 @@ class Player extends Car {
     this.fuel  = clamp(this.fuel,0,100);
     this.hp    = clamp(this.hp,0,100);
     // Lap
-    const lapDone = this.updateLap(track);
+    const lapDone = this.updateLap(track, nearest);
     if (lapDone && this.lapCount > 1) {
       const lt = Date.now() - this.lapStart;
       this.lapTimes.push(lt);
@@ -1041,12 +1050,12 @@ class AI extends Car {
       this.angularVel = (this.speed/this.wheelbase)*Math.tan(this.steerAngle)*grip;
     }
     this.heading += this.angularVel * dt*0.001*30;
-    this.angularVel *= 0.92;
+    this.angularVel = damp(this.angularVel, 0, 5, dt * 0.001);
     this.angularVel = clamp(this.angularVel, -3, 3);
-    this.lateralSpeed *= 0.94;
+    this.lateralSpeed *= Math.pow(0.15, dt * 0.001);
     this.x += (Math.cos(this.heading)*this.speed - Math.sin(this.heading)*this.lateralSpeed)*dt*0.001*60;
     this.y += (Math.sin(this.heading)*this.speed + Math.cos(this.heading)*this.lateralSpeed)*dt*0.001*60;
-    this.updateLap(track);
+    this.updateLap(track, nearest);
   }
 }
 
@@ -1730,7 +1739,7 @@ class Game {
   }
   _loop(ts) {
     if (this._lastTime === 0) { this._lastTime = ts; requestAnimationFrame(t => this._loop(t)); return; }
-    const dt = Math.min(ts - this._lastTime, 50);
+    const dt = Math.min(ts - this._lastTime, 33);
     this._lastTime = ts;
     // FPS
     this._fpsArr.push(1000/Math.max(dt,1));
