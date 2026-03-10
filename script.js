@@ -38,33 +38,62 @@ const COLORS = ['#e83030','#3080ff','#20c060','#f0c030','#cc40cc','#ff8020','#20
 const TRACKS = [
   {
     name:'Grand Circuit',
-    center:[2400,2000],
+    center:[3200,2800],
     points:[
-      {r:600,a:0},{r:620,a:0.32},{r:580,a:0.65},{r:500,a:0.95},
-      {r:450,a:1.25},{r:480,a:1.60},{r:550,a:1.90},{r:640,a:2.20},
-      {r:650,a:2.55},{r:600,a:2.88},{r:520,a:3.20},{r:440,a:3.50},
-      {r:380,a:3.85},{r:400,a:4.20},{r:470,a:4.55},{r:540,a:4.85},
-      {r:580,a:5.15},{r:610,a:5.45},{r:630,a:5.75},{r:615,a:6.00},
-      {r:605,a:6.20},{r:600,a:6.28}
+      {r:1200,a:0},{r:1240,a:0.22},{r:1160,a:0.45},{r:1050,a:0.68},
+      {r:940,a:0.92},{r:880,a:1.18},{r:960,a:1.45},{r:1080,a:1.68},
+      {r:1180,a:1.90},{r:1280,a:2.15},{r:1300,a:2.42},{r:1250,a:2.70},
+      {r:1120,a:2.98},{r:980,a:3.22},{r:860,a:3.48},{r:760,a:3.75},
+      {r:800,a:4.02},{r:920,a:4.28},{r:1040,a:4.55},{r:1140,a:4.82},
+      {r:1200,a:5.10},{r:1240,a:5.35},{r:1260,a:5.60},{r:1240,a:5.85},
+      {r:1220,a:6.10},{r:1200,a:6.28}
     ]
   },
   {
     name:'Tight Twister',
-    center:[2400,2000],
+    center:[3000,2600],
     points:[
-      {r:400,a:0},{r:380,a:0.45},{r:300,a:0.90},{r:260,a:1.35},
-      {r:300,a:1.80},{r:380,a:2.25},{r:450,a:2.70},{r:480,a:3.14},
-      {r:460,a:3.60},{r:400,a:4.05},{r:320,a:4.50},{r:260,a:4.95},
-      {r:300,a:5.40},{r:360,a:5.85},{r:400,a:6.28}
+      {r:820,a:0},{r:780,a:0.35},{r:650,a:0.72},{r:520,a:1.08},
+      {r:460,a:1.42},{r:520,a:1.78},{r:680,a:2.12},{r:820,a:2.48},
+      {r:940,a:2.82},{r:980,a:3.14},{r:940,a:3.50},{r:820,a:3.86},
+      {r:660,a:4.22},{r:520,a:4.58},{r:480,a:4.92},{r:540,a:5.28},
+      {r:680,a:5.62},{r:780,a:5.96},{r:820,a:6.28}
     ]
   },
   {
     name:'Oval Speedway',
-    center:[2400,2000],
+    center:[3200,2800],
     points:[
-      {r:500,a:0},{r:480,a:0.40},{r:320,a:0.80},{r:300,a:1.57},
-      {r:320,a:2.35},{r:480,a:2.75},{r:500,a:3.14},
-      {r:480,a:3.54},{r:320,a:3.93},{r:300,a:4.71},{r:320,a:5.50},{r:480,a:5.90},{r:500,a:6.28}
+      {r:1100,a:0},{r:1060,a:0.30},{r:700,a:0.65},{r:640,a:1.00},
+      {r:620,a:1.57},{r:640,a:2.14},{r:700,a:2.49},{r:1060,a:2.84},
+      {r:1100,a:3.14},{r:1060,a:3.44},{r:700,a:3.79},{r:640,a:4.14},
+      {r:620,a:4.71},{r:640,a:5.28},{r:700,a:5.63},{r:1060,a:5.98},
+      {r:1100,a:6.28}
+    ]
+  },
+  {
+    name:'Mountain Pass',
+    center:[3400,3000],
+    points:[
+      {r:1400,a:0},{r:1350,a:0.18},{r:1200,a:0.38},{r:1020,a:0.60},
+      {r:860,a:0.82},{r:720,a:1.05},{r:650,a:1.30},{r:680,a:1.58},
+      {r:780,a:1.82},{r:920,a:2.06},{r:1100,a:2.28},{r:1280,a:2.50},
+      {r:1380,a:2.72},{r:1420,a:2.96},{r:1350,a:3.20},{r:1180,a:3.45},
+      {r:980,a:3.70},{r:800,a:3.95},{r:680,a:4.22},{r:640,a:4.52},
+      {r:700,a:4.82},{r:860,a:5.10},{r:1040,a:5.36},{r:1220,a:5.60},
+      {r:1360,a:5.82},{r:1400,a:6.05},{r:1400,a:6.28}
+    ]
+  },
+  {
+    name:'Desert Sprint',
+    center:[3000,2600],
+    points:[
+      {r:900,a:0},{r:1050,a:0.25},{r:1200,a:0.55},{r:1300,a:0.88},
+      {r:1280,a:1.20},{r:1150,a:1.50},{r:920,a:1.72},{r:760,a:1.95},
+      {r:700,a:2.20},{r:740,a:2.50},{r:860,a:2.78},{r:1020,a:3.05},
+      {r:1180,a:3.30},{r:1300,a:3.55},{r:1320,a:3.82},{r:1250,a:4.10},
+      {r:1080,a:4.38},{r:900,a:4.65},{r:740,a:4.92},{r:680,a:5.22},
+      {r:720,a:5.52},{r:820,a:5.78},{r:900,a:6.05},{r:900,a:6.28}
     ]
   }
 ];
@@ -95,7 +124,7 @@ const AI_PERSONALITIES = {
   'Drift':  { aggression: 0.70, caution: 0.60, itemStrategy: 0.70, consistency: 0.65 }
 };
 const TOTAL_LAPS = 5;
-const ROAD_WIDTH = 260;
+const ROAD_WIDTH = 220;
 const WALL_HIT_COOLDOWN_MS = 300;
 const PLAYER_WALL_RESTITUTION = 0.35;
 const PLAYER_WALL_SPEED_FACTOR = 0.5;
@@ -617,18 +646,36 @@ class Track {
     this.totalLen = this.cumLen[SN];
     // Build spatial grid for O(1) nearest lookup
     this._buildGrid();
-    // Precompute grass texture dots (decorative)
+    // Precompute grass texture dots (decorative) with wildflowers
     this._grassDots = [];
+    const flowerColors = ['#ffdd22','#ffffff','#cc44cc','#ff8844','#44aaff'];
     for (let i = 0; i < SN; i += 3) {
       const sp = this.spline[i];
       const nx = this.normals[i].nx, ny = this.normals[i].ny;
       for (let side = -1; side <= 1; side += 2) {
-        const off = rng(ROAD_WIDTH/2 + 16, ROAD_WIDTH/2 + 150);
+        const off = rng(ROAD_WIDTH/2 + 16, ROAD_WIDTH/2 + 160);
+        const isFlower = Math.random() < 0.12;
         this._grassDots.push({
           x: sp.x + nx * off * side + rng(-12, 12),
           y: sp.y + ny * off * side + rng(-12, 12),
-          r: rng(1, 3.5),
-          dark: Math.random() > 0.55
+          r: isFlower ? rng(2, 3.5) : rng(1, 3.5),
+          dark: Math.random() > 0.55,
+          flower: isFlower,
+          flowerColor: flowerColors[Math.floor(Math.random()*flowerColors.length)]
+        });
+      }
+    }
+    // Precompute gravel dots (between shoulder and road)
+    this._gravelDots = [];
+    for (let i = 0; i < SN; i += 2) {
+      const sp = this.spline[i];
+      const nx = this.normals[i].nx, ny = this.normals[i].ny;
+      for (let side = -1; side <= 1; side += 2) {
+        const off = rng(ROAD_WIDTH/2 + 2, ROAD_WIDTH/2 + 28);
+        this._gravelDots.push({
+          x: sp.x + nx * off * side + rng(-4, 4),
+          y: sp.y + ny * off * side + rng(-4, 4),
+          r: rng(1.5, 3.5)
         });
       }
     }
@@ -643,6 +690,33 @@ class Track {
         x: sp.x + nx * off, y: sp.y + ny * off,
         w: rng(14, 52), h: rng(7, 22), a: Math.random() * PI2
       });
+    }
+    // Precompute advertising banners (placed at regular intervals beside track)
+    this._banners = [];
+    const bannerData = [
+      {bg:'#e83030',fg:'#ffffff',text:'TURBO'},
+      {bg:'#2255cc',fg:'#ffff00',text:'SPEED'},
+      {bg:'#228822',fg:'#ffffff',text:'RACE'},
+      {bg:'#ff8800',fg:'#111111',text:'NITRO'},
+      {bg:'#8822aa',fg:'#ffffff',text:'APEX'},
+      {bg:'#111111',fg:'#ff3333',text:'DRIFT'}
+    ];
+    const bannerStep = Math.max(1, Math.floor(SN / 18));
+    for (let i = 0; i < SN; i += bannerStep) {
+      const sp = this.spline[i];
+      const nn = this.normals[i];
+      for (let side = -1; side <= 1; side += 2) {
+        if (Math.random() < 0.45) continue;
+        const off = ROAD_WIDTH/2 + 38;
+        const bd = bannerData[Math.floor(Math.random()*bannerData.length)];
+        this._banners.push({
+          x: sp.x + nn.nx*off*side,
+          y: sp.y + nn.ny*off*side,
+          angle: Math.atan2(nn.ny, nn.nx) + PI/2,
+          w: rng(52, 80), h: rng(14, 20),
+          bg: bd.bg, fg: bd.fg, text: bd.text
+        });
+      }
     }
   }
   _buildGrid() {
@@ -678,9 +752,9 @@ class Track {
         }
       }
     }
-    // Fallback: if grid missed (car far off track), do coarse scan
+    // Fallback: if grid missed (car far off track), scan all points
     if (bestDist === Infinity) {
-      for (let i = 0; i < SN; i += 8) {
+      for (let i = 0; i < SN; i++) {
         const sp = this.spline[i];
         const d = dist(x,y,sp.x,sp.y);
         if (d < bestDist) { bestDist = d; bestIdx = i; }
@@ -733,57 +807,105 @@ class Track {
   draw(ctx) {
     const SN = this.spline.length;
     // Grass background is drawn by the game loop
-    // Grass texture dots
+    // Wildflower dots (colored) mixed with grass texture
     for (const d of this._grassDots) {
-      ctx.fillStyle = d.dark ? '#2a5c18' : '#3d7a28';
-      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, PI2); ctx.fill();
+      if (d.flower) {
+        ctx.fillStyle = d.flowerColor;
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 1.4, 0, PI2); ctx.fill();
+      } else {
+        ctx.fillStyle = d.dark ? '#2a5c18' : '#3d7a28';
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, PI2); ctx.fill();
+      }
     }
-    // Shoulder (wider grey/sand)
-    ctx.strokeStyle='#c8b89a'; ctx.lineWidth=ROAD_WIDTH+36;
+    // Gravel trap (tan strip between shoulder and road)
+    ctx.strokeStyle='#d4b88a'; ctx.lineWidth=ROAD_WIDTH+52;
     ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
-    // Rumble strips – white base dashes
-    ctx.strokeStyle='#ffffff'; ctx.lineWidth=ROAD_WIDTH+10;
-    ctx.setLineDash([28,28]); ctx.lineDashOffset=0;
+    // Gravel texture (subtle dots over gravel strip)
+    ctx.fillStyle='rgba(160,130,90,0.18)';
+    for (const p of this._gravelDots||[]) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, PI2); ctx.fill();
+    }
+    // Rumble strips — kerb alternating red/white blocks
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=ROAD_WIDTH+14;
+    ctx.setLineDash([32,32]); ctx.lineDashOffset=0;
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
-    // Rumble strips – red dashes offset to fill gaps (alternating red/white)
-    ctx.strokeStyle='#dd2222'; ctx.lineDashOffset=28;
+    ctx.strokeStyle='#cc1111'; ctx.lineDashOffset=32;
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
     ctx.setLineDash([]); ctx.lineDashOffset=0;
+    // Road shadow (subtle dark edge under road)
+    ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=ROAD_WIDTH+6;
+    ctx.beginPath();
+    ctx.moveTo(this.spline[0].x,this.spline[0].y);
+    for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
+    ctx.closePath(); ctx.stroke();
     // Asphalt road surface
-    ctx.strokeStyle='#2a2a2e'; ctx.lineWidth=ROAD_WIDTH;
+    ctx.strokeStyle='#2e2e34'; ctx.lineWidth=ROAD_WIDTH;
+    ctx.beginPath();
+    ctx.moveTo(this.spline[0].x,this.spline[0].y);
+    for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
+    ctx.closePath(); ctx.stroke();
+    // Road crown — slightly lighter center strip for 3D road feel
+    ctx.strokeStyle='rgba(60,60,70,0.35)'; ctx.lineWidth=ROAD_WIDTH*0.45;
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
     // Asphalt surface patches (subtle dark variation)
-    ctx.fillStyle='rgba(0,0,0,0.06)';
+    ctx.fillStyle='rgba(0,0,0,0.07)';
     for (const p of this._asphaltPatches) {
       ctx.save();
       ctx.translate(p.x, p.y); ctx.rotate(p.a);
       ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
       ctx.restore();
     }
+    // Lane markings — white dashes at 1/3 and 2/3 track width
+    ctx.strokeStyle='rgba(255,255,255,0.28)'; ctx.lineWidth=2; ctx.setLineDash([30,26]);
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      const off = side * ROAD_WIDTH * 0.30;
+      const s0 = this.spline[0], n0 = this.normals[0];
+      ctx.moveTo(s0.x + n0.nx*off, s0.y + n0.ny*off);
+      for (let i=1;i<SN;i++) {
+        const sp = this.spline[i], nn = this.normals[i];
+        ctx.lineTo(sp.x + nn.nx*off, sp.y + nn.ny*off);
+      }
+      ctx.closePath(); ctx.stroke();
+    }
     // Center dashed line
-    ctx.strokeStyle='rgba(255,224,96,0.55)'; ctx.lineWidth=3; ctx.setLineDash([24,20]);
+    ctx.strokeStyle='rgba(255,224,96,0.60)'; ctx.lineWidth=3.5; ctx.setLineDash([28,22]);
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
     ctx.setLineDash([]);
+    // Advertising banners alongside the track
+    for (const b of this._banners||[]) {
+      ctx.save();
+      ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+      ctx.fillStyle = b.bg;
+      ctx.fillRect(-b.w/2, -b.h/2, b.w, b.h);
+      ctx.fillStyle = b.fg;
+      ctx.font = `bold ${Math.round(b.h*0.55)}px Arial`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(b.text, 0, 0);
+      ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1;
+      ctx.strokeRect(-b.w/2,-b.h/2,b.w,b.h);
+      ctx.restore();
+    }
     // Checkered start/finish line
     const sf = this.spline[0];
     const sfn = this.normals[0];
-    const sq = 13; // square size
+    const sq = 14;
     const numSq = Math.ceil(ROAD_WIDTH / sq) + 1;
     const lineAngle = Math.atan2(sfn.ny, sfn.nx);
     ctx.save();
@@ -796,28 +918,52 @@ class Track {
       }
     }
     ctx.restore();
-    // Trees
+    // Trees — more detailed with trunk and highlight
     for (const t of this.trees) {
+      // Trunk
+      ctx.fillStyle='#5c3d1a';
+      ctx.beginPath(); ctx.ellipse(t.x, t.y+t.r*0.4, t.r*0.18, t.r*0.35, 0, 0, PI2); ctx.fill();
+      // Outer canopy shadow
+      ctx.fillStyle='#1e5012';
+      ctx.beginPath(); ctx.arc(t.x+t.r*0.12, t.y+t.r*0.1, t.r, 0, PI2); ctx.fill();
+      // Main canopy
       ctx.fillStyle='#2d6e20';
-      ctx.beginPath(); ctx.arc(t.x,t.y,t.r,0,PI2); ctx.fill();
-      ctx.fillStyle='#3d8a2a';
-      ctx.beginPath(); ctx.arc(t.x-t.r*0.2,t.y-t.r*0.2,t.r*0.65,0,PI2); ctx.fill();
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, PI2); ctx.fill();
+      // Highlight
+      ctx.fillStyle='#4a9a32';
+      ctx.beginPath(); ctx.arc(t.x-t.r*0.22, t.y-t.r*0.22, t.r*0.62, 0, PI2); ctx.fill();
+      // Top glint
+      ctx.fillStyle='rgba(120,220,80,0.3)';
+      ctx.beginPath(); ctx.arc(t.x-t.r*0.3, t.y-t.r*0.3, t.r*0.3, 0, PI2); ctx.fill();
     }
-    // Grandstands
+    // Grandstands — multi-row with roof and flag
     for (const g of this.grandstands) {
-      ctx.save(); ctx.translate(g.x,g.y); ctx.rotate(g.angle);
-      ctx.fillStyle='#888899';
+      ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(g.angle);
+      // Stand base
+      ctx.fillStyle='#6a6a7a';
       ctx.fillRect(-g.w/2,-g.h/2,g.w,g.h);
-      ctx.strokeStyle='#aaaacc'; ctx.lineWidth=1;
-      for (let r=0;r<4;r++) {
-        ctx.beginPath(); ctx.moveTo(-g.w/2, -g.h/2+r*(g.h/4)); ctx.lineTo(g.w/2, -g.h/2+r*(g.h/4)); ctx.stroke();
+      // Row lines
+      ctx.strokeStyle='#9090a8'; ctx.lineWidth=1.2;
+      const rows = 5;
+      for (let r=1;r<rows;r++) {
+        const ry = -g.h/2 + r*(g.h/rows);
+        ctx.beginPath(); ctx.moveTo(-g.w/2, ry); ctx.lineTo(g.w/2, ry); ctx.stroke();
       }
+      // Roof
+      ctx.fillStyle='#c0c0d0';
+      ctx.fillRect(-g.w/2, -g.h/2-8, g.w, 8);
+      // Flag on top
+      ctx.fillStyle='#e83030';
+      ctx.fillRect(-g.w/2, -g.h/2-22, 12, 10);
+      ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1;
+      ctx.strokeRect(-g.w/2,-g.h/2,g.w,g.h);
       ctx.restore();
     }
   }
   drawMinimap(ctx, scale, ox, oy) {
     const SN = this.spline.length;
-    ctx.strokeStyle='rgba(100,140,200,0.7)'; ctx.lineWidth=6*scale;
+    ctx.strokeStyle='rgba(100,140,200,0.7)';
+    ctx.lineWidth = Math.max(3, ROAD_WIDTH * scale);
     ctx.beginPath();
     const s0 = this.spline[0];
     ctx.moveTo(ox + s0.x*scale, oy + s0.y*scale);
@@ -866,40 +1012,99 @@ class Car {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.heading - PI/2);
     // Shadow
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.18;
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(4, 5, 19, 32, 0, 0, PI2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(5, 7, 18, 30, 0, 0, PI2); ctx.fill();
     ctx.globalAlpha = 1;
-    // Body
-    ctx.fillStyle = this.color;
+    // Side panel shadows for depth
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(-19,-29,6,58);
+    ctx.fillRect(13,-29,6,58);
+    // Car body with gradient for 3D look
+    const bodyGrad = ctx.createLinearGradient(-17,0,17,0);
+    bodyGrad.addColorStop(0, this._shadeColor(this.color, -35));
+    bodyGrad.addColorStop(0.25, this._shadeColor(this.color, 20));
+    bodyGrad.addColorStop(0.5, this._shadeColor(this.color, 35));
+    bodyGrad.addColorStop(0.75, this._shadeColor(this.color, 20));
+    bodyGrad.addColorStop(1, this._shadeColor(this.color, -35));
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    ctx.roundRect(-17,-29,34,58,4);
+    ctx.roundRect(-17,-29,34,58,5);
     ctx.fill();
-    // Windshield
-    ctx.fillStyle='rgba(120,200,255,0.5)';
-    ctx.fillRect(-12,-20,24,14);
-    // Wheels
-    ctx.fillStyle='#111';
-    ctx.fillRect(-22,-22,7,16);
-    ctx.fillRect(15,-22,7,16);
-    ctx.fillRect(-22,14,7,16);
-    ctx.fillRect(15,14,7,16);
-    // Headlights
-    ctx.fillStyle='rgba(255,255,190,0.92)';
+    // Racing stripe down the center
+    const stripeGrad = ctx.createLinearGradient(0,-29,0,29);
+    stripeGrad.addColorStop(0,'rgba(255,255,255,0.35)');
+    stripeGrad.addColorStop(0.5,'rgba(255,255,255,0.18)');
+    stripeGrad.addColorStop(1,'rgba(255,255,255,0.10)');
+    ctx.fillStyle = stripeGrad;
+    ctx.fillRect(-5,-28,10,56);
+    // Rear spoiler
+    ctx.fillStyle = this._shadeColor(this.color, -50);
+    ctx.fillRect(-18, 26, 36, 5);
+    ctx.fillRect(-4, 22, 8, 9);
+    // Windshield with gradient (reflective look)
+    const wGrad = ctx.createLinearGradient(-12,-20,12,-6);
+    wGrad.addColorStop(0,'rgba(160,220,255,0.85)');
+    wGrad.addColorStop(0.4,'rgba(120,200,255,0.55)');
+    wGrad.addColorStop(1,'rgba(80,160,220,0.3)');
+    ctx.fillStyle = wGrad;
+    ctx.beginPath(); ctx.roundRect(-11,-20,22,14,2); ctx.fill();
+    // Windshield glare
+    ctx.fillStyle='rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.roundRect(-9,-19,8,5,1); ctx.fill();
+    // Rear window
+    const rwGrad = ctx.createLinearGradient(-10,8,10,18);
+    rwGrad.addColorStop(0,'rgba(80,160,220,0.4)');
+    rwGrad.addColorStop(1,'rgba(60,130,190,0.25)');
+    ctx.fillStyle = rwGrad;
+    ctx.beginPath(); ctx.roundRect(-10,8,20,10,2); ctx.fill();
+    // Wheels — rounded with rim highlights
+    const wheels = [[-22,-22],[ 15,-22],[-22, 14],[ 15, 14]];
+    for (const [wx,wy] of wheels) {
+      // Tire
+      ctx.fillStyle='#1a1a1a';
+      ctx.beginPath(); ctx.roundRect(wx,wy,7,16,2); ctx.fill();
+      // Rim highlight
+      ctx.fillStyle='rgba(200,200,200,0.55)';
+      ctx.beginPath(); ctx.arc(wx+3.5, wy+8, 2.5, 0, PI2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.3)';
+      ctx.beginPath(); ctx.arc(wx+3.5, wy+8, 1.2, 0, PI2); ctx.fill();
+    }
+    // Headlights — glow effect
+    ctx.shadowColor='rgba(255,255,200,0.9)';
+    ctx.shadowBlur=8;
+    ctx.fillStyle='rgba(255,255,190,0.95)';
     ctx.beginPath(); ctx.arc(-9,-26,4,0,PI2); ctx.fill();
     ctx.beginPath(); ctx.arc(9,-26,4,0,PI2); ctx.fill();
-    // Tail lights
-    ctx.fillStyle='#cc1111';
-    ctx.fillRect(-13,24,9,5);
-    ctx.fillRect(4,24,9,5);
+    ctx.shadowBlur=0;
+    // Tail lights — red glow
+    ctx.shadowColor='rgba(220,20,20,0.8)';
+    ctx.shadowBlur=6;
+    ctx.fillStyle='#ee1111';
+    ctx.beginPath(); ctx.roundRect(-13,24,9,5,1); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(4,24,9,5,1); ctx.fill();
+    ctx.shadowBlur=0;
     ctx.restore();
     // Name tag
-    ctx.fillStyle='rgba(0,0,0,0.5)';
-    ctx.fillRect(this.x-22,this.y-42,44,14);
+    ctx.fillStyle='rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.roundRect(this.x-22,this.y-44,44,14,3); ctx.fill();
     ctx.fillStyle='#fff';
-    ctx.font='9px Arial';
+    ctx.font='bold 9px Arial';
     ctx.textAlign='center';
-    ctx.fillText(this.name, this.x, this.y-32);
+    ctx.fillText(this.name, this.x, this.y-33);
+  }
+  _shadeColor(hex, amount) {
+    // Lighten/darken a hex color by amount (-255 to 255). Supports #rrggbb and rgb()/rgba().
+    let r=0,g=0,b=0;
+    if (typeof hex === 'string' && hex.charAt(0) === '#' && hex.length === 7) {
+      r=parseInt(hex.slice(1,3),16); g=parseInt(hex.slice(3,5),16); b=parseInt(hex.slice(5,7),16);
+    } else if (typeof hex === 'string' && (hex.startsWith('rgb'))) {
+      const m=hex.match(/[\d.]+/g);
+      if(m && m.length >= 3){r=+m[0];g=+m[1];b=+m[2];}
+      else { return hex; }
+    } else { return hex; }
+    r=clamp(r+amount,0,255); g=clamp(g+amount,0,255); b=clamp(b+amount,0,255);
+    return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
   }
 }
 
@@ -1077,10 +1282,11 @@ class Player extends Car {
       if (d > 0.1) {
         // Outward normal (from track center toward car)
         const nx = dx / d, ny = dy / d;
-        // Snap car back to wall boundary
+        // Soft push-back: cap snap per frame to avoid teleporting
         const over = nearest.dist - wallDist;
-        this.x -= nx * over;
-        this.y -= ny * over;
+        const snap = Math.min(over, 15);
+        this.x -= nx * snap;
+        this.y -= ny * snap;
         // World-space velocity
         const vx = Math.cos(this.heading) * this.speed - Math.sin(this.heading) * this.lateralSpeed;
         const vy = Math.sin(this.heading) * this.speed + Math.cos(this.heading) * this.lateralSpeed;
@@ -1533,8 +1739,9 @@ class AI extends Car {
       if (d > 0.1) {
         const nx = dx / d, ny = dy / d;
         const over = nearest.dist - ROAD_WIDTH / 2;
-        this.x -= nx * over;
-        this.y -= ny * over;
+        const snap = Math.min(over, 15);
+        this.x -= nx * snap;
+        this.y -= ny * snap;
         const vx = Math.cos(this.heading) * this.speed - Math.sin(this.heading) * this.lateralSpeed;
         const vy = Math.sin(this.heading) * this.speed + Math.cos(this.heading) * this.lateralSpeed;
         const dot = vx * nx + vy * ny;
@@ -1929,7 +2136,7 @@ class Game {
     this.oilSlicks= [];
     this.missiles = [];
     this.shake    = 0;
-    this.cameraX  = 2400; this.cameraY = 2000;
+    this.cameraX  = 3200; this.cameraY = 2800;
     this.raceTime = 0;
     this.fps      = 60;
     this._fpsArr  = [];
@@ -2103,26 +2310,49 @@ class Game {
       m.update(dt, hitTargets);
     }
     this.missiles = this.missiles.filter(m=>m.active);
-    // Collisions
+    // Collisions — cooldown per pair to prevent frame-by-frame chaos
+    const now = Date.now();
+    if (!this._colCooldowns) this._colCooldowns = {};
     for (let i=0;i<allCars.length;i++) {
       for (let j=i+1;j<allCars.length;j++) {
         const a=allCars[i], b=allCars[j];
         const d=dist(a.x,a.y,b.x,b.y);
-        if (d<44 && d>0.1) {
-          const sep=(44-d)/2;
+        const collisionR = 46;
+        if (d < collisionR && d > 0.1) {
+          const key = i + ':' + j;
+          const lastHit = this._colCooldowns[key] || 0;
           const nx=(a.x-b.x)/d, ny=(a.y-b.y)/d;
-          a.x+=nx*sep; a.y+=ny*sep;
-          b.x-=nx*sep; b.y-=ny*sep;
-          a.speed*=0.9; b.speed*=0.9;
-          a.angularVel+=(Math.random()-0.5)*0.3;
-          b.angularVel+=(Math.random()-0.5)*0.3;
-          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-          this.particles.burst(mx,my,8,{color:'#ffff80',minSpd:80,maxSpd:160,life:400,size:4});
-          if (a===this.player||b===this.player) {
-            if (!this.player.activeEffects.shield && !this.player.activeEffects.ghost_mode) {
-              this.player.hp-=3;
-              this.shake+=8;
-              this.audio.playEffect('impact');
+          // Soft separation: push only 40% of overlap per frame
+          const sep = (collisionR - d) * 0.4;
+          a.x += nx*sep; a.y += ny*sep;
+          b.x -= nx*sep; b.y -= ny*sep;
+          if (now - lastHit > 300) {
+            this._colCooldowns[key] = now;
+            // Impulse-based speed response using relative velocity along normal
+            const avx = Math.cos(a.heading)*a.speed - Math.sin(a.heading)*a.lateralSpeed;
+            const avy = Math.sin(a.heading)*a.speed + Math.cos(a.heading)*a.lateralSpeed;
+            const bvx = Math.cos(b.heading)*b.speed - Math.sin(b.heading)*b.lateralSpeed;
+            const bvy = Math.sin(b.heading)*b.speed + Math.cos(b.heading)*b.lateralSpeed;
+            const relVn = (avx-bvx)*nx + (avy-bvy)*ny;
+            if (relVn > 0) {
+              const imp = relVn * 0.55;
+              const aSpeed = (Math.cos(a.heading)*(avx - imp*nx) + Math.sin(a.heading)*(avy - imp*ny));
+              const bSpeed = (Math.cos(b.heading)*(bvx + imp*nx) + Math.sin(b.heading)*(bvy + imp*ny));
+              a.speed = aSpeed * 0.88;
+              b.speed = bSpeed * 0.88;
+              // Gentle deflection based on impact angle — no random spin
+              const impactAngle = Math.atan2(ny, nx);
+              a.angularVel += angleDiff(a.heading, impactAngle) * 0.08;
+              b.angularVel -= angleDiff(b.heading, impactAngle) * 0.08;
+            }
+            const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+            this.particles.burst(mx,my,8,{color:'#ffff80',minSpd:80,maxSpd:160,life:400,size:4});
+            if (a===this.player||b===this.player) {
+              if (!this.player.activeEffects.shield && !this.player.activeEffects.ghost_mode) {
+                this.player.hp-=3;
+                this.shake+=8;
+                this.audio.playEffect('impact');
+              }
             }
           }
         }
@@ -2263,9 +2493,16 @@ class Game {
     mc.clearRect(0,0,MW,MH);
     mc.fillStyle='rgba(8,10,18,0.7)';
     mc.fillRect(0,0,MW,MH);
-    // Compute scale & offset to fit track
+    // Compute scale & offset to fit track dynamically
     const cx=this.track.center[0], cy=this.track.center[1];
-    const scale=0.033;
+    // Determine max extent of spline from center for auto-scaling
+    let maxR = 0;
+    for (const sp of this.track.spline) {
+      const r = dist(sp.x, sp.y, cx, cy);
+      if (r > maxR) maxR = r;
+    }
+    const padding = 12;
+    const scale = maxR > 0 ? (MW/2 - padding) / maxR : 0.033;
     const ox=MW/2-cx*scale, oy=MH/2-cy*scale;
     this.track.drawMinimap(mc,scale,ox,oy);
     // Cars
