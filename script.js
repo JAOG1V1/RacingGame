@@ -217,7 +217,7 @@ class Particles {
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * alpha, 0, PI2);
+      ctx.arc(sx, sy, p.size * alpha, 0, PI2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -859,18 +859,22 @@ class Player extends Car {
     this.y += (Math.sin(this.heading)*this.speed + Math.cos(this.heading)*this.lateralSpeed) * dt*0.001*60;
     // Off-road
     const nearest = track.nearest(this.x,this.y);
-    if (nearest.dist > this.track_roadWidth/2 + 20) {
+    if (nearest.dist > ROAD_WIDTH/2 + 20) {
       this.tires -= 0.8 * dt*0.001;
       this.fuel -= 0.05 * dt*0.001;
       this.speed = Math.min(this.speed, 60);
     }
     // Boundary push
     if (nearest.dist > ROAD_WIDTH/2 + 60) {
-      const push = 0.15;
-      this.x += nearest.nx * push * (nearest.dist - ROAD_WIDTH/2-60) * dt*0.001*60;
-      this.y += nearest.ny * push * (nearest.dist - ROAD_WIDTH/2-60) * dt*0.001*60;
+      const sp = track.spline[nearest.idx];
+      const dx = sp.x - this.x, dy = sp.y - this.y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d > 0.1) {
+        const push = 0.15 * (nearest.dist - ROAD_WIDTH/2 - 60) * dt * 0.001 * 60;
+        this.x += (dx/d) * push;
+        this.y += (dy/d) * push;
+      }
     }
-    this.track_roadWidth = ROAD_WIDTH;
     // Oil slick
     if (oilSlicks) {
       for (const o of oilSlicks) {
@@ -947,6 +951,9 @@ class AI extends Car {
     this.inventory = [null,null,null];
     this.hp = 100;
     this.stunTimer = 0;
+  }
+  addItem(type) {
+    for (let i=0;i<3;i++) { if (!this.inventory[i]) { this.inventory[i]=type; return; } }
   }
   update(dt, track, playerX, playerY, allCars, itemBoxes) {
     if (this.stunTimer > 0) { this.stunTimer -= dt; this.speed *= 0.95; return; }
