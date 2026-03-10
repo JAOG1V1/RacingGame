@@ -86,6 +86,15 @@ const PLAYER_WALL_RESTITUTION = 0.35;
 const PLAYER_WALL_SPEED_FACTOR = 0.5;
 const AI_WALL_RESTITUTION = 0.2;
 const AI_WALL_SPEED_FACTOR = 0.6;
+const AI_ITEM_USE_RATE = 0.0015;       // probability per ms that AI uses an item
+const RUBBER_BAND_THRESHOLD = 300;     // distance gap before rubber-banding kicks in
+const RUBBER_BAND_CATCH_UP = 4000;     // divisor for catch-up factor (larger = gentler)
+const RUBBER_BAND_SLOW_DOWN = 5000;    // divisor for slow-down factor
+const RUBBER_BAND_MAX_BOOST = 0.12;    // max rubber-band speed multiplier (catch-up)
+const RUBBER_BAND_MAX_SLOW = 0.08;     // max rubber-band speed reduction (slow-down)
+const CAMERA_DAMPING = 5;             // camera follow damping lambda
+const CAMERA_LOOKAHEAD_FWD = 80;      // camera lookahead distance (forward)
+const CAMERA_LOOKAHEAD_REV = 110;     // camera lookahead distance (rear view)
 
 // ============================================================
 // AUDIO ENGINE
@@ -162,6 +171,7 @@ class AudioEngine {
       case 'missile': o.type='sawtooth'; o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(150,t+0.3); g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.start(t); o.stop(t+0.3); break;
       case 'countdown': o.type='square'; o.frequency.value=440; g.gain.setValueAtTime(0.3,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.start(t); o.stop(t+0.15); break;
       case 'go':      o.type='square';   o.frequency.value=880; g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.start(t); o.stop(t+0.3); break;
+      case 'horn':    o.type='sine';     o.frequency.setValueAtTime(440,t); o.frequency.setValueAtTime(550,t+0.12); o.frequency.setValueAtTime(440,t+0.24); g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.45); o.start(t); o.stop(t+0.45); break;
     }
   }
   toggle() {
@@ -577,20 +587,76 @@ class Track {
       this.cumLen.push(this.cumLen[i]+len);
     }
     this.totalLen = this.cumLen[SN];
+    // Build spatial grid for O(1) nearest lookup
+    this._buildGrid();
+    // Precompute grass texture dots (decorative)
+    this._grassDots = [];
+    for (let i = 0; i < SN; i += 3) {
+      const sp = this.spline[i];
+      const nx = this.normals[i].nx, ny = this.normals[i].ny;
+      for (let side = -1; side <= 1; side += 2) {
+        const off = rng(ROAD_WIDTH/2 + 16, ROAD_WIDTH/2 + 150);
+        this._grassDots.push({
+          x: sp.x + nx * off * side + rng(-12, 12),
+          y: sp.y + ny * off * side + rng(-12, 12),
+          r: rng(1, 3.5),
+          dark: Math.random() > 0.55
+        });
+      }
+    }
+    // Precompute asphalt surface patches (subtle road variation)
+    this._asphaltPatches = [];
+    for (let i = 0; i < SN; i += 5) {
+      if (Math.random() > 0.45) continue;
+      const sp = this.spline[i];
+      const nx = this.normals[i].nx, ny = this.normals[i].ny;
+      const off = rng(-(ROAD_WIDTH/2 - 28), ROAD_WIDTH/2 - 28);
+      this._asphaltPatches.push({
+        x: sp.x + nx * off, y: sp.y + ny * off,
+        w: rng(14, 52), h: rng(7, 22), a: Math.random() * PI2
+      });
+    }
+  }
+  _buildGrid() {
+    const CELL = 200;
+    this._gridCell = CELL;
+    this._grid = {};
+    for (let i = 0; i < this.spline.length; i++) {
+      const sp = this.spline[i];
+      const cx = Math.floor(sp.x / CELL);
+      const cy = Math.floor(sp.y / CELL);
+      const key = cx + ',' + cy;
+      if (!this._grid[key]) this._grid[key] = [];
+      this._grid[key].push(i);
+    }
   }
   nearest(x, y) {
     const SN = this.spline.length;
+    const CELL = this._gridCell;
+    const cx = Math.floor(x / CELL);
+    const cy = Math.floor(y / CELL);
     let bestDist = Infinity, bestIdx = 0;
-    for (let i = 0; i < SN; i += 8) {
-      const sp = this.spline[i];
-      const d = dist(x,y,sp.x,sp.y);
-      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    // Check 5x5 grid cells (radius 2) around the car position
+    for (let dcx = -2; dcx <= 2; dcx++) {
+      for (let dcy = -2; dcy <= 2; dcy++) {
+        const key = (cx + dcx) + ',' + (cy + dcy);
+        const cell = this._grid[key];
+        if (!cell) continue;
+        for (const i of cell) {
+          const sp = this.spline[i];
+          const dx = x - sp.x, dy = y - sp.y;
+          const d = Math.sqrt(dx*dx + dy*dy);
+          if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+      }
     }
-    for (let i = bestIdx-4; i <= bestIdx+4; i++) {
-      const idx = (i+SN)%SN;
-      const sp = this.spline[idx];
-      const d = dist(x,y,sp.x,sp.y);
-      if (d < bestDist) { bestDist = d; bestIdx = idx; }
+    // Fallback: if grid missed (car far off track), do coarse scan
+    if (bestDist === Infinity) {
+      for (let i = 0; i < SN; i += 8) {
+        const sp = this.spline[i];
+        const d = dist(x,y,sp.x,sp.y);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
     }
     return { idx: bestIdx, dist: bestDist, nx: this.normals[bestIdx].nx, ny: this.normals[bestIdx].ny };
   }
@@ -639,42 +705,69 @@ class Track {
   draw(ctx) {
     const SN = this.spline.length;
     // Grass background is drawn by the game loop
-    // Shoulder (wider grey)
+    // Grass texture dots
+    for (const d of this._grassDots) {
+      ctx.fillStyle = d.dark ? '#2a5c18' : '#3d7a28';
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, PI2); ctx.fill();
+    }
+    // Shoulder (wider grey/sand)
     ctx.strokeStyle='#c8b89a'; ctx.lineWidth=ROAD_WIDTH+36;
     ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
-    // Curbs
-    ctx.strokeStyle='#dd2222'; ctx.lineWidth=ROAD_WIDTH+10;
-    ctx.setLineDash([28,28]);
+    // Rumble strips – white base dashes
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=ROAD_WIDTH+10;
+    ctx.setLineDash([28,28]); ctx.lineDashOffset=0;
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
-    ctx.setLineDash([]);
-    // Asphalt
+    // Rumble strips – red dashes offset to fill gaps (alternating red/white)
+    ctx.strokeStyle='#dd2222'; ctx.lineDashOffset=28;
+    ctx.beginPath();
+    ctx.moveTo(this.spline[0].x,this.spline[0].y);
+    for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
+    ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]); ctx.lineDashOffset=0;
+    // Asphalt road surface
     ctx.strokeStyle='#2a2a2e'; ctx.lineWidth=ROAD_WIDTH;
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
+    // Asphalt surface patches (subtle dark variation)
+    ctx.fillStyle='rgba(0,0,0,0.06)';
+    for (const p of this._asphaltPatches) {
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.a);
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    }
     // Center dashed line
-    ctx.strokeStyle='#ffe06088'; ctx.lineWidth=3; ctx.setLineDash([24,20]);
+    ctx.strokeStyle='rgba(255,224,96,0.55)'; ctx.lineWidth=3; ctx.setLineDash([24,20]);
     ctx.beginPath();
     ctx.moveTo(this.spline[0].x,this.spline[0].y);
     for (let i=1;i<SN;i++) ctx.lineTo(this.spline[i].x,this.spline[i].y);
     ctx.closePath(); ctx.stroke();
     ctx.setLineDash([]);
-    // Start/finish line
+    // Checkered start/finish line
     const sf = this.spline[0];
     const sfn = this.normals[0];
-    ctx.strokeStyle='#ffffff'; ctx.lineWidth=8;
-    ctx.beginPath();
-    ctx.moveTo(sf.x - sfn.nx*(ROAD_WIDTH/2), sf.y - sfn.ny*(ROAD_WIDTH/2));
-    ctx.lineTo(sf.x + sfn.nx*(ROAD_WIDTH/2), sf.y + sfn.ny*(ROAD_WIDTH/2));
-    ctx.stroke();
+    const sq = 13; // square size
+    const numSq = Math.ceil(ROAD_WIDTH / sq) + 1;
+    const lineAngle = Math.atan2(sfn.ny, sfn.nx);
+    ctx.save();
+    ctx.translate(sf.x, sf.y);
+    ctx.rotate(lineAngle);
+    for (let i = 0; i < numSq; i++) {
+      for (let row = 0; row < 2; row++) {
+        ctx.fillStyle = ((i + row) % 2 === 0) ? '#ffffff' : '#111111';
+        ctx.fillRect(-ROAD_WIDTH/2 + i * sq, -sq + row * sq, sq, sq);
+      }
+    }
+    ctx.restore();
     // Trees
     for (const t of this.trees) {
       ctx.fillStyle='#2d6e20';
@@ -744,22 +837,35 @@ class Car {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.heading - PI/2);
-    // body
+    // Shadow
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(4, 5, 19, 32, 0, 0, PI2); ctx.fill();
+    ctx.globalAlpha = 1;
+    // Body
     ctx.fillStyle = this.color;
     ctx.beginPath();
     ctx.roundRect(-17,-29,34,58,4);
     ctx.fill();
-    // windshield
+    // Windshield
     ctx.fillStyle='rgba(120,200,255,0.5)';
     ctx.fillRect(-12,-20,24,14);
-    // wheels
+    // Wheels
     ctx.fillStyle='#111';
     ctx.fillRect(-22,-22,7,16);
     ctx.fillRect(15,-22,7,16);
     ctx.fillRect(-22,14,7,16);
     ctx.fillRect(15,14,7,16);
+    // Headlights
+    ctx.fillStyle='rgba(255,255,190,0.92)';
+    ctx.beginPath(); ctx.arc(-9,-26,4,0,PI2); ctx.fill();
+    ctx.beginPath(); ctx.arc(9,-26,4,0,PI2); ctx.fill();
+    // Tail lights
+    ctx.fillStyle='#cc1111';
+    ctx.fillRect(-13,24,9,5);
+    ctx.fillRect(4,24,9,5);
     ctx.restore();
-    // name tag
+    // Name tag
     ctx.fillStyle='rgba(0,0,0,0.5)';
     ctx.fillRect(this.x-22,this.y-42,44,14);
     ctx.fillStyle='#fff';
@@ -788,6 +894,7 @@ class Player extends Car {
     this.lastLapTime = null;
     this.drifting = false;
     this.nitroTimer = 0;
+    this._nitroOn = false;
   }
   addItem(type) {
     for (let i=0;i<3;i++) { if (!this.inventory[i]) { this.inventory[i]=type; return; } }
@@ -821,6 +928,52 @@ class Player extends Car {
       case 'ghost_mode': this.activeEffects.ghost_mode = 4000; break;
     }
   }
+  draw(ctx) {
+    // Boost / nitro flame behind car
+    if (this.activeEffects.boost || this._nitroOn) {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.heading - PI/2);
+      const flameLen = this.activeEffects.boost ? 45 + rng(0,12) : 30 + rng(0,8);
+      const grd = ctx.createLinearGradient(0, 30, 0, 30 + flameLen);
+      if (this._nitroOn && !this.activeEffects.boost) {
+        grd.addColorStop(0, 'rgba(80,180,255,0.95)');
+        grd.addColorStop(0.5,'rgba(0,120,255,0.6)');
+        grd.addColorStop(1, 'rgba(0,60,200,0)');
+      } else {
+        grd.addColorStop(0, 'rgba(255,180,0,0.95)');
+        grd.addColorStop(0.5,'rgba(255,60,0,0.65)');
+        grd.addColorStop(1, 'rgba(200,0,0,0)');
+      }
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.moveTo(-9, 30); ctx.lineTo(9, 30); ctx.lineTo(0, 30 + flameLen);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    // Ghost mode – draw semi-transparent
+    if (this.activeEffects.ghost_mode) {
+      ctx.save(); ctx.globalAlpha = 0.42;
+      super.draw(ctx);
+      ctx.restore();
+      return;
+    }
+    // Normal draw
+    super.draw(ctx);
+    // Shield bubble
+    if (this.activeEffects.shield) {
+      const prog = clamp(this.activeEffects.shield / 5000, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = 0.12 + prog * 0.18;
+      ctx.fillStyle = '#60aaff';
+      ctx.beginPath(); ctx.arc(this.x, this.y, 40, 0, PI2); ctx.fill();
+      ctx.globalAlpha = 0.45 + prog * 0.25;
+      ctx.strokeStyle = '#80ccff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(this.x, this.y, 40, 0, PI2); ctx.stroke();
+      ctx.restore();
+    }
+  }
   update(dt, input, track, weather, itemBoxes, oilSlicks, missiles, particles, audio, ghost, allCars) {
     const cfg = this.carConfig;
     const grip = weather.getGrip() * (this.tires/100*0.4+0.6);
@@ -847,8 +1000,19 @@ class Player extends Car {
       this.speed += 0.4 * (dt*0.004);
       this.nitro -= 18 * dt * 0.001;
       this.nitroTimer += dt;
+      this._nitroOn = true;
+      // Blue/cyan nitro flame particles
+      if (particles && Math.random() > 0.35) {
+        const ex = this.x - Math.cos(this.heading)*32, ey = this.y - Math.sin(this.heading)*32;
+        particles.emit(ex, ey, {
+          color: Math.random() > 0.5 ? '#40aaff' : '#00ddff',
+          size: rng(3,7), life: 240,
+          vx: rng(-40,40), vy: rng(-40,40), drag: 0.88
+        });
+      }
     } else {
       this.nitro = Math.min(cfg.nitroMax, this.nitro + 6 * dt * 0.001);
+      this._nitroOn = false;
     }
     this.nitro = clamp(this.nitro,0,cfg.nitroMax);
     // Handbrake
@@ -990,7 +1154,7 @@ class AI extends Car {
   addItem(type) {
     for (let i=0;i<3;i++) { if (!this.inventory[i]) { this.inventory[i]=type; return; } }
   }
-  update(dt, track, playerX, playerY, allCars, itemBoxes) {
+  update(dt, track, playerX, playerY, allCars, itemBoxes, oilSlicks) {
     if (this.stunTimer > 0) { this.stunTimer -= dt; this.speed *= 0.95; return; }
     const SN = track.spline.length;
     // Find current position on track
@@ -1002,6 +1166,17 @@ class AI extends Car {
     const desiredH = Math.atan2(target.y-this.y, target.x-this.x);
     const diff = angleDiff(this.heading, desiredH);
     this.steerAngle = clamp(diff * 1.2, -0.6, 0.6);
+    // Oil slick avoidance – steer away if an oil slick is nearby
+    if (oilSlicks) {
+      for (const o of oilSlicks) {
+        if (!o.active) continue;
+        const od = dist(this.x, this.y, o.x, o.y);
+        if (od < 90) {
+          const avoidA = Math.atan2(this.y - o.y, this.x - o.x);
+          this.steerAngle += clamp(angleDiff(this.heading, avoidA) * 0.4 * (1 - od/90), -0.3, 0.3);
+        }
+      }
+    }
     // Curvature-based speed
     const curv = track.curvatureAt(targetIdx);
     const maxSpd = this.carConfig.topSpeed * this.skill * lerp(0.6, 1.0, curv);
@@ -1043,6 +1218,13 @@ class AI extends Car {
       for (const ib of itemBoxes) {
         if (ib.active && dist(this.x,this.y,ib.x,ib.y)<40) ib.collect(this);
       }
+    }
+    // AI item usage – use items probabilistically
+    if (this.inventory[0] && Math.random() < AI_ITEM_USE_RATE * dt) {
+      const type = this.inventory[0];
+      this.inventory.shift(); this.inventory.push(null);
+      if (type === 'boost' || type === 'nitro_refill') this.speed = Math.min(this.speed * 1.4, this.carConfig.topSpeed);
+      if (type === 'repair') this.hp = Math.min(100, this.hp + 40);
     }
     // Physics
     const grip = 0.9;
@@ -1281,9 +1463,20 @@ class MenuSystem {
   _buildSel(id, items, key) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.innerHTML = items.map((name,i) =>
-      `<button class="menu-btn${this.sel[key]===i?' selected':''}" data-key="${key}" data-idx="${i}">${name}</button>`
-    ).join('');
+    if (key === 'track') {
+      el.innerHTML = items.map((name,i) => {
+        let bestLabel = '';
+        try {
+          const stored = localStorage.getItem('bestLap_' + name);
+          if (stored) bestLabel = ` <span style="font-size:0.6rem;color:#88cc88">⏱${formatTime(parseInt(stored))}</span>`;
+        } catch(e) {}
+        return `<button class="menu-btn${this.sel[key]===i?' selected':''}" data-key="${key}" data-idx="${i}">${name}${bestLabel}</button>`;
+      }).join('');
+    } else {
+      el.innerHTML = items.map((name,i) =>
+        `<button class="menu-btn${this.sel[key]===i?' selected':''}" data-key="${key}" data-idx="${i}">${name}</button>`
+      ).join('');
+    }
   }
   _buildColors() {
     const el = document.getElementById('colSel');
@@ -1398,6 +1591,7 @@ class Game {
     this._lastTime= 0;
     this._raf     = null;
     this._useItemFlag = false;
+    this._hornCooldown = 0;
     this._resize();
     window.addEventListener('resize', () => this._resize());
     window.addEventListener('blur',   () => { if (this.state==='racing') this.state='paused'; });
@@ -1408,6 +1602,12 @@ class Game {
     // Finish button
     const finBtn = document.getElementById('finBtn');
     if (finBtn) finBtn.addEventListener('click', () => this._toMenu());
+    // Play Again button
+    const playAgainBtn = document.getElementById('playAgainBtn');
+    if (playAgainBtn) playAgainBtn.addEventListener('click', () => {
+      document.getElementById('finishScreen').classList.add('hide');
+      this._initRace(this.menu.getConfig());
+    });
     // Sound button
     const sndBtn = document.getElementById('soundBtn');
     if (sndBtn) sndBtn.addEventListener('click', () => {
@@ -1476,9 +1676,11 @@ class Game {
     const num  = document.getElementById('cntNum');
     el.classList.remove('hide');
     let count = 3;
+    const COLORS_CD = {3:'#ff4040', 2:'#f0c030', 1:'#ff8020', 0:'#60ff60'};
     const tick = () => {
       num.textContent = count > 0 ? count : 'GO!';
-      num.style.color = count > 0 ? '#ffe060' : '#60ff60';
+      num.style.color = COLORS_CD[count] || '#ffe060';
+      num.style.textShadow = `0 0 40px ${COLORS_CD[count]}aa, 0 4px 0 rgba(0,0,0,0.4)`;
       num.style.animation = 'none';
       void num.offsetWidth;
       num.style.animation = 'cntPulse 0.4s ease-out';
@@ -1504,6 +1706,8 @@ class Game {
     this.player=null; this.ais=[]; this.track=null;
   }
   _update(dt) {
+    // Keep updating particles even after finish for confetti effect
+    if (this.state === 'finished') { this.particles.update(dt); this.notifs.update(dt); return; }
     if (this.state !== 'racing') return;
     this.raceTime += dt;
     // Input
@@ -1518,6 +1722,14 @@ class Game {
       this.player.useItem(this.oilSlicks, this.missiles, this.particles, this.audio, this.ais);
       this.input.useItem=false;
     }
+    // Horn sound (H key)
+    if (this.input.keys['KeyH']) {
+      if (!this._hornCooldown) {
+        this.audio.playEffect('horn');
+        this._hornCooldown = 600;
+      }
+    }
+    if (this._hornCooldown) this._hornCooldown = Math.max(0, this._hornCooldown - dt);
     // Weather
     this.weather.update(dt);
     // Player
@@ -1529,7 +1741,11 @@ class Game {
     // AIs
     const allCars = [this.player, ...this.ais];
     for (const ai of this.ais) {
-      ai.update(dt, this.track, this.player.x, this.player.y, allCars, this.track.itemBoxes);
+      ai.update(dt, this.track, this.player.x, this.player.y, allCars, this.track.itemBoxes, this.oilSlicks);
+      // Rubber-banding: AI far behind gets a small speed boost; far ahead slows slightly
+      const gap = this.player.totalDist - ai.totalDist;
+      if (gap > RUBBER_BAND_THRESHOLD) ai.speed *= (1 + clamp((gap - RUBBER_BAND_THRESHOLD) / RUBBER_BAND_CATCH_UP, 0, RUBBER_BAND_MAX_BOOST));
+      else if (gap < -RUBBER_BAND_THRESHOLD) ai.speed *= (1 - clamp((-gap - RUBBER_BAND_THRESHOLD) / RUBBER_BAND_SLOW_DOWN, 0, RUBBER_BAND_MAX_SLOW));
     }
     // Item boxes update
     for (const ib of this.track.itemBoxes) ib.update(dt);
@@ -1573,14 +1789,14 @@ class Game {
     this.tireMarks.update(dt);
     if (Math.random()<0.01) this.tireMarks.prune();
     this.notifs.update(dt);
-    // Camera
+    // Smooth camera with velocity lookahead
     const rv = this.input.rearView;
-    this.cameraX = this.player.x;
-    this.cameraY = this.player.y;
-    if (rv) {
-      this.cameraX -= Math.cos(this.player.heading)*120;
-      this.cameraY -= Math.sin(this.player.heading)*120;
-    }
+    const dir = rv ? -1 : 1;
+    const lookahead = rv ? CAMERA_LOOKAHEAD_REV : CAMERA_LOOKAHEAD_FWD;
+    const targetCamX = this.player.x + dir * Math.cos(this.player.heading) * lookahead;
+    const targetCamY = this.player.y + dir * Math.sin(this.player.heading) * lookahead;
+    this.cameraX = damp(this.cameraX, targetCamX, CAMERA_DAMPING, dt * 0.001);
+    this.cameraY = damp(this.cameraY, targetCamY, CAMERA_DAMPING, dt * 0.001);
     this.shake *= 0.88;
     // HUD
     this._updateHUD();
@@ -1723,13 +1939,47 @@ class Game {
   _end(position) {
     this.state='finished';
     const p=this.player;
+    // Position-based points (F1-style)
+    const POS_PTS = [25,18,15,12,10,8,6,4,2,1];
+    const racePoints = POS_PTS[Math.max(0, position-1)] || 0;
+    p.score += racePoints * 100;
+    // Track record (best lap per track)
+    let newRecord = false;
+    if (p.bestLap) {
+      try {
+        const key = 'bestLap_' + this.track.config.name;
+        const stored = parseInt(localStorage.getItem(key)) || Infinity;
+        if (p.bestLap < stored) {
+          localStorage.setItem(key, p.bestLap);
+          newRecord = true;
+        }
+      } catch(e) {}
+    }
+    if (newRecord) {
+      this.notifs.add('🏆 NEW TRACK RECORD!', '#f0c040', 4000);
+    }
+    // Confetti burst
+    const confettiColors = ['#ff4444','#44aaff','#44ff88','#ffcc00','#ff44ff','#ff8800','#00ffcc','#ff6666'];
+    for (let i = 0; i < 55; i++) {
+      const a = rng(0, PI2), spd = rng(100, 320);
+      this.particles.emit(this.player.x, this.player.y, {
+        vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+        color: confettiColors[Math.floor(Math.random()*confettiColors.length)],
+        size: rng(3,8), life: rng(2500,4500), drag: 0.96, gravity: 0.06
+      });
+    }
     const ordinals=['','1st','2nd','3rd','4th','5th','6th'];
     document.getElementById('finTitle').textContent=`You finished ${ordinals[position]||position+'th'}!`;
     const statsEl=document.getElementById('finStats');
+    const trackKey = 'bestLap_' + this.track.config.name;
+    let trackRecord = '—';
+    try { const s = localStorage.getItem(trackKey); if (s) trackRecord = formatTime(parseInt(s)); } catch(e) {}
     const rows=[
       ['Position', ordinals[position]||position+'th'],
       ['Total Time', formatTime(this.raceTime)],
       ['Best Lap', p.bestLap?formatTime(p.bestLap):'—'],
+      ['Track Record', trackRecord + (newRecord ? ' 🏆' : '')],
+      ['Race Points', '+' + racePoints + ' pts'],
       ['Score', Math.round(p.score)],
       ['Drift Score', Math.round(p.driftScore)],
       ['Laps', TOTAL_LAPS+'/'+TOTAL_LAPS]
