@@ -79,6 +79,21 @@ const ITEM_TYPES = ['shield','boost','missile','oil','magnet','repair','nitro_re
 const ITEM_EMOJI = {shield:'🛡',boost:'⚡',missile:'🚀',oil:'🛢',magnet:'🧲',repair:'🔧',nitro_refill:'💧',mine:'💣',lightning:'⚡',ghost_mode:'👻'};
 const AI_NAMES = ['Blaze','Nova','Ghost','Viper','Storm','Titan','Raven','Spike','Cruz','Neon','Axel','Drift'];
 const AI_COLORS = ['#ff4444','#44aaff','#44ff88','#ffcc00','#ff44ff','#ff8800','#00ffcc','#8888ff','#ff6666','#66ff66'];
+// Unique personality traits per named AI (aggression, caution, itemStrategy, consistency)
+const AI_PERSONALITIES = {
+  'Blaze':  { aggression: 0.90, caution: 0.30, itemStrategy: 0.70, consistency: 0.80 },
+  'Nova':   { aggression: 0.60, caution: 0.60, itemStrategy: 0.80, consistency: 0.90 },
+  'Ghost':  { aggression: 0.40, caution: 0.90, itemStrategy: 0.90, consistency: 0.95 },
+  'Viper':  { aggression: 0.75, caution: 0.65, itemStrategy: 1.00, consistency: 0.85 },
+  'Storm':  { aggression: 0.85, caution: 0.40, itemStrategy: 0.60, consistency: 0.70 },
+  'Titan':  { aggression: 0.50, caution: 0.80, itemStrategy: 0.70, consistency: 0.90 },
+  'Raven':  { aggression: 0.75, caution: 0.55, itemStrategy: 0.85, consistency: 0.80 },
+  'Spike':  { aggression: 0.95, caution: 0.20, itemStrategy: 0.50, consistency: 0.60 },
+  'Cruz':   { aggression: 0.60, caution: 0.70, itemStrategy: 0.75, consistency: 0.85 },
+  'Neon':   { aggression: 0.70, caution: 0.55, itemStrategy: 0.80, consistency: 0.75 },
+  'Axel':   { aggression: 0.80, caution: 0.45, itemStrategy: 0.65, consistency: 0.70 },
+  'Drift':  { aggression: 0.70, caution: 0.60, itemStrategy: 0.70, consistency: 0.65 }
+};
 const TOTAL_LAPS = 5;
 const ROAD_WIDTH = 260;
 const WALL_HIT_COOLDOWN_MS = 300;
@@ -86,7 +101,8 @@ const PLAYER_WALL_RESTITUTION = 0.35;
 const PLAYER_WALL_SPEED_FACTOR = 0.5;
 const AI_WALL_RESTITUTION = 0.2;
 const AI_WALL_SPEED_FACTOR = 0.6;
-const AI_ITEM_USE_RATE = 0.0015;       // probability per ms that AI uses an item
+const AI_ITEM_USE_RATE = 0.0015;       // probability per ms that AI uses an item (legacy, replaced by strategic system)
+const AI_BASE_GRIP_MULTIPLIER = 0.9;   // AI grip is slightly softer than ideal to simulate realistic handling
 const RUBBER_BAND_THRESHOLD = 300;     // distance gap before rubber-banding kicks in
 const RUBBER_BAND_CATCH_UP = 4000;     // divisor for catch-up factor (larger = gentler)
 const RUBBER_BAND_SLOW_DOWN = 5000;    // divisor for slow-down factor
@@ -464,6 +480,7 @@ class Missile {
     this.lifetime = 3000;
     this.active = true;
     this.particles = particles;
+    this.owner = null; // set after creation to identify who fired it
   }
   update(dt, cars) {
     if (!this.active) return;
@@ -476,9 +493,20 @@ class Missile {
     if (this.particles) this.particles.emit(this.x, this.y, { color:'#ff8030', size:5, life:300, vx:rng(-20,20), vy:rng(-20,20), drag:0.9 });
     // hit detection
     for (const car of cars) {
+      if (car === this.owner) continue; // never hit the car that fired this missile
       if (dist(this.x, this.y, car.x, car.y) < 30) {
+        // Ghost mode: missile passes through
+        if (car.activeEffects && car.activeEffects.ghost_mode > 0) continue;
+        // Shield: deflect missile without harming car
+        if (car.activeEffects && car.activeEffects.shield > 0) {
+          this.active = false;
+          if (this.particles) this.particles.burst(this.x,this.y,8,{color:'#44aaff',minSpd:60,maxSpd:140,life:400});
+          return;
+        }
         car.angularVel = (Math.random()-0.5)*2;
         car.speed *= 0.3;
+        // Stun AI cars briefly after missile impact
+        if (car.stunTimer !== undefined) car.stunTimer = 600;
         this.active = false;
         if (this.particles) this.particles.burst(this.x,this.y,12,{color:'#ff4400',minSpd:80,maxSpd:200,life:500});
         return;
@@ -915,7 +943,9 @@ class Player extends Car {
             if (d2 < best && d2 > 10) { best=d2; target=c; }
           }
           const h = target ? Math.atan2(target.y-this.y,target.x-this.x) : this.heading;
-          missiles.push(new Missile(this.x,this.y,h,particles));
+          const m = new Missile(this.x,this.y,h,particles);
+          m.owner = this;
+          missiles.push(m);
           if (audio) audio.playEffect('missile');
         }
         break;
@@ -1146,52 +1176,355 @@ class AI extends Car {
     this.carConfig = carConfig;
     this.skill = skill;
     this.waypointIdx = 0;
-    this.lookahead = Math.round(lerp(6,12,skill));
+    this.lookahead = Math.round(lerp(8, 18, skill));
     this.inventory = [null,null,null];
     this.hp = 100;
     this.stunTimer = 0;
+    this.activeEffects = { shield: 0, ghost_mode: 0, boost: 0, magnet: 0 };
+    // Personality traits
+    const p = AI_PERSONALITIES[name] || { aggression: 0.65, caution: 0.65, itemStrategy: 0.70, consistency: 0.80 };
+    this.aggression   = p.aggression;
+    this.caution      = p.caution;
+    this.itemStrategy = p.itemStrategy;
+    this.consistency  = p.consistency;
+    // Internal state
+    this._recoveryTimer      = 0;
+    this._overtakeTimer      = 0;
+    this._overtakeSide       = 0;
+    this._targetRacingOffset = 0;
   }
+
   addItem(type) {
     for (let i=0;i<3;i++) { if (!this.inventory[i]) { this.inventory[i]=type; return; } }
   }
-  update(dt, track, playerX, playerY, allCars, itemBoxes, oilSlicks) {
-    if (this.stunTimer > 0) { this.stunTimer -= dt; this.speed *= 0.95; return; }
+
+  _getRacePosition(allCars) {
+    let pos = 0;
+    for (const c of allCars) { if (c !== this && c.totalDist > this.totalDist) pos++; }
+    return pos;
+  }
+
+  _applyItem(type, allCars, oilSlicks, missiles, particles) {
+    switch (type) {
+      case 'boost':
+        this.speed = Math.min(this.speed * 1.40, this.carConfig.topSpeed);
+        this.activeEffects.boost = 3000;
+        break;
+      case 'nitro_refill':
+        this.speed = Math.min(this.speed * 1.35, this.carConfig.topSpeed);
+        break;
+      case 'repair':
+        this.hp = Math.min(100, this.hp + 40);
+        break;
+      case 'shield':
+        this.activeEffects.shield = 5000;
+        break;
+      case 'ghost_mode':
+        this.activeEffects.ghost_mode = 4000;
+        break;
+      case 'magnet':
+        this.activeEffects.magnet = 4000;
+        break;
+      case 'missile':
+        if (missiles && particles) {
+          // Target the nearest car ahead of us
+          let bestTarget = null, bestDist = 400;
+          for (const c of allCars) {
+            if (c === this) continue;
+            const d = dist(this.x, this.y, c.x, c.y);
+            if (d < bestDist && c.totalDist > this.totalDist) {
+              const aToT = Math.atan2(c.y - this.y, c.x - this.x);
+              if (Math.abs(angleDiff(this.heading, aToT)) < PI * 0.6) {
+                bestTarget = c; bestDist = d;
+              }
+            }
+          }
+          const mHeading = bestTarget
+            ? Math.atan2(bestTarget.y - this.y, bestTarget.x - this.x)
+            : this.heading;
+          const m = new Missile(this.x, this.y, mHeading, particles);
+          m.owner = this;
+          missiles.push(m);
+        }
+        break;
+      case 'oil':
+        if (oilSlicks) oilSlicks.push(new OilSlick(this.x, this.y));
+        break;
+      case 'mine':
+        if (oilSlicks) oilSlicks.push(new OilSlick(this.x + rng(-20,20), this.y + rng(-20,20)));
+        break;
+      case 'lightning':
+        for (const c of allCars) {
+          if (c !== this) { c.speed *= 0.2; c.angularVel += (Math.random()-0.5)*1; }
+        }
+        break;
+    }
+  }
+
+  _useItemStrategic(allCars, oilSlicks, missiles, particles, track, targetIdx) {
+    if (!this.inventory[0]) return;
+    const type = this.inventory[0];
+    const myPos = this._getRacePosition(allCars);
+    const numCars = allCars.length;
     const SN = track.spline.length;
-    // Find current position on track
-    const nearest = track.nearest(this.x,this.y);
+    let shouldUse = false;
+
+    switch (type) {
+      case 'repair':
+        shouldUse = this.hp < 50;
+        break;
+      case 'shield': {
+        // Use when a missile is incoming
+        if (missiles) {
+          for (const m of missiles) {
+            if (m.owner !== this && dist(this.x, this.y, m.x, m.y) < 200) { shouldUse = true; break; }
+          }
+        }
+        // Or when surrounded by 2+ close cars
+        if (!shouldUse) {
+          let n = 0;
+          for (const c of allCars) { if (c !== this && dist(this.x, this.y, c.x, c.y) < 100) n++; }
+          if (n >= 2) shouldUse = true;
+        }
+        break;
+      }
+      case 'boost':
+      case 'nitro_refill': {
+        // Use on clear straights
+        let straightness = 0;
+        for (let i = 0; i < 10; i++) straightness += track.curvatureAt((targetIdx + i * 2) % SN);
+        straightness /= 10; // 1 = straight, 0 = sharp
+        shouldUse = straightness > lerp(0.80, 0.65, this.aggression);
+        break;
+      }
+      case 'missile': {
+        if (missiles && particles) {
+          for (const c of allCars) {
+            if (c === this) continue;
+            const d = dist(this.x, this.y, c.x, c.y);
+            if (d < 300 && c.totalDist > this.totalDist) {
+              const aToT = Math.atan2(c.y - this.y, c.x - this.x);
+              if (Math.abs(angleDiff(this.heading, aToT)) < PI / 2.5) { shouldUse = true; break; }
+            }
+          }
+        }
+        break;
+      }
+      case 'oil':
+      case 'mine': {
+        // Drop behind when being closely followed
+        for (const c of allCars) {
+          if (c === this) continue;
+          const d = dist(this.x, this.y, c.x, c.y);
+          if (d < 130 && c.totalDist < this.totalDist) {
+            const angBehind = Math.atan2(c.y - this.y, c.x - this.x);
+            if (Math.abs(angleDiff(this.heading + PI, angBehind)) < PI / 3) { shouldUse = true; break; }
+          }
+        }
+        break;
+      }
+      case 'lightning':
+        shouldUse = myPos >= numCars - 2;
+        break;
+      case 'ghost_mode': {
+        let n = 0;
+        for (const c of allCars) { if (c !== this && dist(this.x, this.y, c.x, c.y) < 120) n++; }
+        shouldUse = n >= 2;
+        break;
+      }
+      case 'magnet':
+        shouldUse = true; // always useful for item collection
+        break;
+    }
+
+    if (shouldUse && Math.random() < this.itemStrategy) {
+      const usedType = this.inventory[0];
+      this.inventory.shift();
+      this.inventory.push(null);
+      this._applyItem(usedType, allCars, oilSlicks, missiles, particles);
+    }
+  }
+
+  update(dt, track, playerX, playerY, allCars, itemBoxes, oilSlicks, weather, missiles, particles) {
+    // Update active effect timers
+    for (const k in this.activeEffects) { if (this.activeEffects[k] > 0) this.activeEffects[k] -= dt; }
+
+    // --- Stun: slow down and skip AI logic ---
+    if (this.stunTimer > 0) {
+      this.stunTimer -= dt;
+      this.speed *= 0.95;
+      if (this.stunTimer <= 0) this._recoveryTimer = 1500; // gradual rebuild after stun
+      return;
+    }
+
+    const SN = track.spline.length;
+    const nearest = track.nearest(this.x, this.y);
     this.waypointIdx = nearest.idx;
-    const targetIdx = (this.waypointIdx + this.lookahead) % SN;
-    const target = track.spline[targetIdx];
-    // Steer toward target
-    const desiredH = Math.atan2(target.y-this.y, target.x-this.x);
+
+    // === 1. MULTI-POINT LOOKAHEAD PATH PLANNING ===
+    // Gauge upcoming curve tightness to adapt lookahead distance
+    let upcomingCurv = 0;
+    for (let i = 1; i <= 8; i++) {
+      upcomingCurv = Math.max(upcomingCurv, 1 - track.curvatureAt((this.waypointIdx + i * 2) % SN));
+    }
+    const baseLookahead = Math.round(lerp(8, 18, this.skill));
+    // Longer lookahead on straights, shorter through tight sections
+    const adaptiveLookahead = Math.round(lerp(baseLookahead * 1.5, baseLookahead * 0.6, upcomingCurv));
+    const targetIdx = (this.waypointIdx + adaptiveLookahead) % SN;
+
+    // Weighted average of multiple lookahead points for smoother steering
+    let tX = 0, tY = 0, wSum = 0;
+    for (let i = 1; i <= 4; i++) {
+      const idx = (this.waypointIdx + Math.round(adaptiveLookahead * i / 4)) % SN;
+      const w = i;
+      tX += track.spline[idx].x * w;
+      tY += track.spline[idx].y * w;
+      wSum += w;
+    }
+    tX /= wSum;
+    tY /= wSum;
+
+    // === 10. RACING LINE OPTIMIZATION ===
+    // Offset the target toward the inside of upcoming curves
+    const turnTightness = 1 - track.curvatureAt(targetIdx); // 0=straight, 1=sharp
+    if (turnTightness > 0.05) {
+      const normal = track.normals[targetIdx];
+      const pA = track.spline[(targetIdx - 4 + SN) % SN];
+      const pB = track.spline[targetIdx];
+      const pC = track.spline[(targetIdx + 4) % SN];
+      const t1x = pB.x - pA.x, t1y = pB.y - pA.y;
+      const t2x = pC.x - pB.x, t2y = pC.y - pB.y;
+      // Z-component of cross product: positive = left turn, negative = right turn
+      const cross = t1x * t2y - t1y * t2x;
+      const insideSide = cross > 0 ? 1 : -1;
+      const racingOffset = turnTightness * ROAD_WIDTH * 0.22 * insideSide * this.skill;
+      this._targetRacingOffset = damp(this._targetRacingOffset, racingOffset, 3, dt * 0.001);
+      tX += normal.nx * this._targetRacingOffset;
+      tY += normal.ny * this._targetRacingOffset;
+    } else {
+      this._targetRacingOffset = damp(this._targetRacingOffset, 0, 3, dt * 0.001);
+    }
+
+    // Steer toward computed target
+    const desiredH = Math.atan2(tY - this.y, tX - this.x);
     const diff = angleDiff(this.heading, desiredH);
-    this.steerAngle = clamp(diff * 1.2, -0.6, 0.6);
-    // Oil slick avoidance – steer away if an oil slick is nearby
+    this.steerAngle = clamp(diff * lerp(1.1, 1.5, this.skill), -0.6, 0.6);
+
+    // === 2. PREDICTIVE BRAKING ===
+    // Look ahead at upcoming curvature and begin braking before tight turns
+    let maxFutureTightness = 0;
+    const brakeSteps = Math.round(lerp(8, 22, this.skill));
+    for (let i = 2; i <= brakeSteps; i++) {
+      const t = (1 - track.curvatureAt((this.waypointIdx + i) % SN)) * (1 - (i - 2) / brakeSteps);
+      if (t > maxFutureTightness) maxFutureTightness = t;
+    }
+    const immediateTightness = 1 - track.curvatureAt(targetIdx);
+    const brakeStrength = Math.max(immediateTightness, maxFutureTightness * 0.85);
+
+    // === 7. WEATHER-AWARE GRIP ===
+    const weatherGrip = weather ? weather.getGrip() : 1.0;
+    const weatherSpeedScale = lerp(0.80, 1.0, weatherGrip);
+
+    // === 4. DRAFTING / SLIPSTREAM ===
+    let draftBonus = 0;
+    for (const c of allCars) {
+      if (c === this) continue;
+      const d = dist(this.x, this.y, c.x, c.y);
+      if (d < 120 && d > 20) {
+        const aToC = Math.atan2(c.y - this.y, c.x - this.x);
+        if (Math.abs(angleDiff(this.heading, aToC)) < 0.3 && c.totalDist > this.totalDist) {
+          draftBonus = Math.max(draftBonus, lerp(0, 0.08, 1 - d / 120));
+        }
+      }
+    }
+
+    // Target speed: factor in caution, curvature, weather, and drafting
+    const cautionScale = lerp(1.0, lerp(0.72, 0.55, this.caution), brakeStrength);
+    const maxSpd = this.carConfig.topSpeed * this.skill * cautionScale * weatherSpeedScale * (1 + draftBonus);
+
+    // Acceleration / braking
+    if (this.speed < maxSpd) {
+      const recovMult = this._recoveryTimer > 0 ? lerp(0.3, 1.0, 1 - this._recoveryTimer / 1500) : 1.0;
+      this.speed += this.carConfig.accel * this.skill * dt * 0.004 * recovMult;
+    } else if (brakeStrength > 0.25) {
+      this.speed *= lerp(0.993, 0.965, brakeStrength);
+    } else {
+      this.speed *= 0.993;
+    }
+    if (this._recoveryTimer > 0) this._recoveryTimer -= dt;
+    this.speed = clamp(this.speed, 0, this.carConfig.topSpeed);
+
+    // === 11. IMPROVED CAR-TO-CAR AVOIDANCE ===
+    for (const c of allCars) {
+      if (c === this) continue;
+      const d2 = dist(this.x, this.y, c.x, c.y);
+      if (d2 < 90 && d2 > 0.1) {
+        const aToC = Math.atan2(c.y - this.y, c.x - this.x);
+        const hDiff = angleDiff(this.heading, aToC);
+        // Allow side-by-side racing: skip avoidance when car is beside us at similar speed
+        const isBeside = Math.abs(hDiff) > 0.8 && Math.abs(hDiff) < 2.3;
+        if (!isBeside) {
+          this.heading += normalizeAngle(aToC - this.heading + PI) * ((90 - d2) / 90 * 0.06);
+          // Brake when approaching a slower car from behind
+          if (Math.abs(hDiff) < 0.4 && this.speed > c.speed + 15) {
+            this.speed = damp(this.speed, c.speed + 10, 3, dt * 0.001);
+          }
+        }
+      }
+    }
+
+    // === 5. AGGRESSIVE OVERTAKING ===
+    if (this._overtakeTimer <= 0) {
+      for (const c of allCars) {
+        if (c === this) continue;
+        const d = dist(this.x, this.y, c.x, c.y);
+        if (d < 110 && d > 30) {
+          const aToC = Math.atan2(c.y - this.y, c.x - this.x);
+          const hDiff = angleDiff(this.heading, aToC);
+          if (Math.abs(hDiff) < 0.45 && c.totalDist > this.totalDist && c.speed <= this.speed * 1.1) {
+            if (Math.random() < this.aggression * 0.008 * dt) {
+              this._overtakeTimer = 1200;
+              this._overtakeSide = hDiff >= 0 ? -1 : 1;
+            }
+          }
+        }
+      }
+    } else {
+      this._overtakeTimer -= dt;
+      this.steerAngle = clamp(this.steerAngle + this._overtakeSide * 0.18 * this.aggression, -0.6, 0.6);
+    }
+
+    // === 6. DEFENSIVE DRIVING ===
+    // When leading or in 2nd, subtly block the racing line
+    if (this._getRacePosition(allCars) <= 1 && this._overtakeTimer <= 0) {
+      for (const c of allCars) {
+        if (c === this) continue;
+        const d = dist(this.x, this.y, c.x, c.y);
+        if (d < 130) {
+          const aToC = Math.atan2(c.y - this.y, c.x - this.x);
+          const hDiff = angleDiff(this.heading, aToC + PI);
+          if (Math.abs(hDiff) < 0.55 && c.totalDist < this.totalDist) {
+            this.steerAngle = clamp(this.steerAngle - hDiff * 0.12 * this.aggression, -0.6, 0.6);
+          }
+        }
+      }
+    }
+
+    // === OIL SLICK AVOIDANCE (improved: earlier detection, caution-scaled) ===
     if (oilSlicks) {
       for (const o of oilSlicks) {
         if (!o.active) continue;
         const od = dist(this.x, this.y, o.x, o.y);
-        if (od < 90) {
+        const avoidR = lerp(90, 145, this.caution);
+        if (od < avoidR) {
           const avoidA = Math.atan2(this.y - o.y, this.x - o.x);
-          this.steerAngle += clamp(angleDiff(this.heading, avoidA) * 0.4 * (1 - od/90), -0.3, 0.3);
+          const str = lerp(0.25, 0.55, this.caution) * (1 - od / avoidR);
+          this.steerAngle = clamp(this.steerAngle + angleDiff(this.heading, avoidA) * str, -0.6, 0.6);
+          if (od < 60) this.speed *= lerp(0.999, 0.996, this.caution);
         }
       }
     }
-    // Curvature-based speed
-    const curv = track.curvatureAt(targetIdx);
-    const maxSpd = this.carConfig.topSpeed * this.skill * lerp(0.6, 1.0, curv);
-    if (this.speed < maxSpd) this.speed += this.carConfig.accel * this.skill * dt*0.004;
-    else this.speed *= 0.99;
-    this.speed = clamp(this.speed, 0, this.carConfig.topSpeed);
-    // Car avoidance
-    for (const c of allCars) {
-      if (c === this) continue;
-      const d2 = dist(this.x,this.y,c.x,c.y);
-      if (d2 < 80) {
-        const avoidA = Math.atan2(this.y-c.y, this.x-c.x);
-        this.heading += normalizeAngle(avoidA - this.heading) * 0.05;
-      }
-    }
+
     // Hard wall collision for AI
     if (nearest.dist > ROAD_WIDTH / 2) {
       const sp = track.spline[nearest.idx];
@@ -1210,24 +1543,36 @@ class AI extends Car {
           const rvy = vy - (1 + AI_WALL_RESTITUTION) * dot * ny;
           this.speed = (Math.cos(this.heading) * rvx + Math.sin(this.heading) * rvy) * AI_WALL_SPEED_FACTOR;
           this.lateralSpeed = (-Math.sin(this.heading) * rvx + Math.cos(this.heading) * rvy) * AI_WALL_SPEED_FACTOR;
+          // === 9. RECOVERY after wall hit: gradual speed rebuild ===
+          this._recoveryTimer = 1000;
         }
       }
     }
-    // Item pickup
+
+    // Item pickup (extend range when magnet is active)
     if (itemBoxes) {
+      const pickupR = this.activeEffects.magnet > 0 ? 180 : 40;
       for (const ib of itemBoxes) {
-        if (ib.active && dist(this.x,this.y,ib.x,ib.y)<40) ib.collect(this);
+        if (ib.active && dist(this.x, this.y, ib.x, ib.y) < pickupR) ib.collect(this);
       }
     }
-    // AI item usage – use items probabilistically
-    if (this.inventory[0] && Math.random() < AI_ITEM_USE_RATE * dt) {
-      const type = this.inventory[0];
-      this.inventory.shift(); this.inventory.push(null);
-      if (type === 'boost' || type === 'nitro_refill') this.speed = Math.min(this.speed * 1.4, this.carConfig.topSpeed);
-      if (type === 'repair') this.hp = Math.min(100, this.hp + 40);
+
+    // === 3. STRATEGIC ITEM USAGE ===
+    this._useItemStrategic(allCars, oilSlicks, missiles, particles, track, targetIdx);
+
+    // === 9. SPIN RECOVERY: reduce steering input when spinning ===
+    if (Math.abs(this.angularVel) > 1.5) {
+      this.steerAngle *= 0.15;
+      this.speed *= 0.97;
     }
-    // Physics
-    const grip = 0.9;
+
+    // === 8. PERSONALITY CONSISTENCY: add subtle noise for erratic AIs ===
+    if (this.consistency < 0.95) {
+      this.steerAngle += (Math.random() - 0.5) * lerp(0.06, 0, this.consistency);
+    }
+
+    // Physics (use actual weather grip instead of hardcoded 0.9)
+    const grip = weatherGrip * AI_BASE_GRIP_MULTIPLIER;
     if (Math.abs(this.speed) > 0.5) {
       this.angularVel = (this.speed/this.wheelbase)*Math.tan(this.steerAngle)*grip;
     }
@@ -1741,7 +2086,7 @@ class Game {
     // AIs
     const allCars = [this.player, ...this.ais];
     for (const ai of this.ais) {
-      ai.update(dt, this.track, this.player.x, this.player.y, allCars, this.track.itemBoxes, this.oilSlicks);
+      ai.update(dt, this.track, this.player.x, this.player.y, allCars, this.track.itemBoxes, this.oilSlicks, this.weather, this.missiles, this.particles);
       // Rubber-banding: AI far behind gets a small speed boost; far ahead slows slightly
       const gap = this.player.totalDist - ai.totalDist;
       if (gap > RUBBER_BAND_THRESHOLD) ai.speed *= (1 + clamp((gap - RUBBER_BAND_THRESHOLD) / RUBBER_BAND_CATCH_UP, 0, RUBBER_BAND_MAX_BOOST));
@@ -1752,9 +2097,11 @@ class Game {
     // Oil slicks
     for (const o of this.oilSlicks) o.update(dt);
     this.oilSlicks = this.oilSlicks.filter(o=>o.active);
-    // Missiles
-    const hitTargets = allCars.filter(c=>c!==this.player);
-    for (const m of this.missiles) m.update(dt, hitTargets);
+    // Missiles: each missile hits all cars except its owner
+    for (const m of this.missiles) {
+      const hitTargets = allCars.filter(c => c !== m.owner);
+      m.update(dt, hitTargets);
+    }
     this.missiles = this.missiles.filter(m=>m.active);
     // Collisions
     for (let i=0;i<allCars.length;i++) {
