@@ -846,11 +846,11 @@ class Player extends Car {
     } else {
       this.angularVel *= 0.7;
     }
+    this.heading += this.angularVel * dt * 0.001 * 30;
     this.angularVel *= 0.92;
     this.angularVel = clamp(this.angularVel, -3, 3);
-    this.heading += this.angularVel * dt * 0.001 * 30;
     // Lateral speed (drift)
-    const latFriction = input.handbrake ? 0.92 : 0.94;
+    const latFriction = 0.94;
     this.lateralSpeed *= latFriction;
     if (Math.abs(this.speed) > 1) {
       const sideForce = this.angularVel * this.speed * 0.06 * (1-grip);
